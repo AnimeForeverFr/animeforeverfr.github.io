@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anime Forever</title>
+<style>
+  /* === Style Global === */
+  @import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;700&display=swap');
+  body {
+    margin: 0; font-family: 'Nunito Sans', sans-serif;
+    background-color: #0d0d0d; color: #f0f0f0;
+  }
+  header {
+    background: #1a1a1a; padding: 1rem;
+    display: flex; justify-content: space-between; align-items: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+  }
+  header h1 { margin: 0; font-size: 1.8rem; color: #ff3d00; }
+  nav button {
+    background: #ff3d00; border: none; color: #fff;
+    padding: 0.5rem 1rem; margin-left: 0.5rem;
+    border-radius: 5px; cursor: pointer;
+    font-weight: bold;
+  }
+  nav button:hover { background: #ff5722; }
+  main { padding: 1rem; }
+  .series-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(250px,1fr)); gap: 1rem; }
+  .serie-card {
+    background: #1a1a1a; padding: 1rem; border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+  }
+  .serie-card img { width: 100%; border-radius: 5px; }
+  .serie-card h2 { margin: 0.5rem 0 0.2rem 0; }
+  .episode-card {
+    background: #222; padding: 0.5rem; margin: 0.5rem 0; border-radius: 5px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  input, select, textarea {
+    width: 100%; padding: 0.5rem; margin: 0.3rem 0 0.8rem 0;
+    border-radius: 5px; border: none;
+  }
+  button.upload-btn {
+    background: #00bfa5; border: none; color: #fff;
+    padding: 0.7rem 1rem; border-radius: 5px; font-weight: bold;
+    cursor: pointer;
+  }
+  button.upload-btn:hover { background: #26a69a; }
+  video { width: 100%; max-height: 400px; border-radius: 5px; margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Anime Forever</h1>
+  <nav>
+    <button onclick="showPage('pageAccueil')">Accueil</button>
+    <button onclick="showPage('pageUpload')">Ajouter Vidéo</button>
+  </nav>
+</header>
+
+<main>
+  <!-- === Accueil / Liste des séries === -->
+  <div id="pageAccueil">
+    <h2>Nos Séries</h2>
+    <div class="series-grid" id="seriesContainer"></div>
+  </div>
+
+  <!-- === Page Série / Liste des épisodes === -->
+  <div id="pageSerie" style="display:none;">
+    <button onclick="showPage('pageAccueil')">← Retour aux séries</button>
+    <h2 id="serieTitle"></h2>
+    <div id="episodesContainer"></div>
+    <div id="videoPlayerContainer"></div>
+  </div>
+
+  <!-- === Page Upload / Ajouter série ou épisode === -->
+  <div id="pageUpload" style="display:none;">
+    <h2>Ajouter une Série ou un Épisode</h2>
+    <label>Pseudo de l'auteur :</label>
+    <input type="text" id="pseudo" placeholder="Votre pseudo..." />
+    <label>Nom de la série :</label>
+    <input type="text" id="serieName" placeholder="Nom de la série..." />
+    <label>Description de la série (optionnel) :</label>
+    <textarea id="serieDesc" placeholder="Description..."></textarea>
+    <label>Image de la série (URL) :</label>
+    <input type="text" id="serieImg" placeholder="Lien image..." />
+    <label>Type de vidéo :</label>
+    <select id="videoType">
+      <option value="url">Lien externe (YouTube, etc.)</option>
+      <option value="local">Fichier local (mp4)</option>
+    </select>
+    <label id="videoLabel">URL de la vidéo :</label>
+    <input type="text" id="videoInput" placeholder="Lien vidéo ou fichier local..." />
+    <input type="file" id="videoFile" style="display:none;" accept="video/mp4"/>
+    <button class="upload-btn" onclick="addEpisode()">Publier</button>
+  </div>
+</main>
+
+<script>
+  /* === Données et stockage === */
+  let animeData = JSON.parse(localStorage.getItem('animeData')) || [];
+
+  function saveData() { localStorage.setItem('animeData', JSON.stringify(animeData)); }
+
+  function showPage(pageId) {
+    document.querySelectorAll('main > div').forEach(p => p.style.display='none');
+    document.getElementById(pageId).style.display='block';
+  }
+
+  /* === Affichage des séries === */
+  function renderSeries() {
+    const container = document.getElementById('seriesContainer');
+    container.innerHTML = '';
+    if(animeData.length === 0) container.innerHTML = '<p>Aucune série pour le moment.</p>';
+    animeData.forEach((serie, index) => {
+      const card = document.createElement('div'); card.className='serie-card';
+      card.innerHTML = `
+        <img src="${serie.image || ''}" alt="${serie.name}">
+        <h2>${serie.name}</h2>
+        <p>${serie.desc || ''}</p>
+        <p>Ajouté par : ${serie.pseudo}</p>
+        <button onclick="showSerie(${index})">Voir la série</button>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  /* === Affichage d’une série et ses épisodes === */
+  function showSerie(index) {
+    const serie = animeData[index];
+    showPage('pageSerie');
+    document.getElementById('serieTitle').innerText = serie.name;
+    const container = document.getElementById('episodesContainer');
+    container.innerHTML = '';
+    if(!serie.episodes || serie.episodes.length===0) container.innerHTML='<p>Aucun épisode.</p>';
+    serie.episodes && serie.episodes.forEach((ep, i) => {
+      const epDiv = document.createElement('div'); epDiv.className='episode-card';
+      epDiv.innerHTML = `
+        <span>${ep.title} (Ajouté par: ${ep.pseudo})</span>
+        <span>
+          <button onclick="playVideo('${ep.type}','${ep.src.replaceAll("'", "\\'")}')">Regarder</button>
+          ${ep.type==='url'?`<a href="${ep.src}" target="_blank"><button>Télécharger</button></a>`:
+          `<a href="${URL.createObjectURL(ep.file)}" download><button>Télécharger</button></a>`}
+        </span>
+      `;
+      container.appendChild(epDiv);
+    });
+    document.getElementById('videoPlayerContainer').innerHTML='';
+  }
+
+  /* === Jouer une vidéo === */
+  function playVideo(type, src) {
+    const container = document.getElementById('videoPlayerContainer');
+    container.innerHTML='';
+    if(type==='url') {
+      container.innerHTML = `<iframe width="100%" height="400" src="${src}" frameborder="0" allowfullscreen></iframe>`;
+    } else {
+      const video = document.createElement('video'); video.controls=true;
+      video.src = src; container.appendChild(video);
+    }
+  }
+
+  /* === Ajouter série ou épisode === */
+  document.getElementById('videoType').addEventListener('change', function(){
+    if(this.value==='url'){
+      document.getElementById('videoInput').style.display='block';
+      document.getElementById('videoFile').style.display='none';
+      document.getElementById('videoLabel').innerText='URL de la vidéo :';
+    } else {
+      document.getElementById('videoInput').style.display='none';
+      document.getElementById('videoFile').style.display='block';
+      document.getElementById('videoLabel').innerText='Choisir un fichier vidéo :';
+    }
+  });
+
+  function addEpisode() {
+    const pseudo = document.getElementById('pseudo').value.trim();
+    const serieName = document.getElementById('serieName').value.trim();
+    const serieDesc = document.getElementById('serieDesc').value.trim();
+    const serieImg = document.getElementById('serieImg').value.trim();
+    const videoType = document.getElementById('videoType').value;
+    const videoSrc = videoType==='url'?document.getElementById('videoInput').value.trim():null;
+    const videoFile = videoType==='local'?document.getElementById('videoFile').files[0]:null;
+
+    if(!pseudo || !serieName || (!videoSrc && !videoFile)) { alert('Veuillez remplir les champs requis.'); return; }
+
+    // Chercher série existante
+    let serie = animeData.find(s=>s.name.toLowerCase()===serieName.toLowerCase());
+    if(!serie){
+      serie = {name:serieName, desc:serieDesc, image:serieImg, pseudo:pseudo, episodes:[]};
+      animeData.push(serie);
+    }
+
+    // Ajouter épisode
+    const epTitle = `Épisode ${serie.episodes.length+1}`;
+    if(videoType==='url'){
+      serie.episodes.push({title:epTitle, type:'url', src:videoSrc, pseudo:pseudo});
+    } else {
+      serie.episodes.push({title:epTitle, type:'local', file:videoFile, pseudo:pseudo, src:URL.createObjectURL(videoFile)});
+    }
+
+    saveData(); renderSeries();
+    alert('Vidéo publiée avec succès !');
+    showPage('pageAccueil');
+    document.getElementById('pseudo').value='';
+    document.getElementById('serieName').value='';
+    document.getElementById('serieDesc').value='';
+    document.getElementById('serieImg').value='';
+    document.getElementById('videoInput').value='';
+    document.getElementById('videoFile').value='';
+  }
+
+  // === Initialisation ===
+  renderSeries();
+</script>
+
+</body>
+</html>
