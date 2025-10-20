@@ -5,51 +5,51 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Anime Forever</title>
 <style>
-  /* === Style Global === */
   @import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;700&display=swap');
-  body {
-    margin: 0; font-family: 'Nunito Sans', sans-serif;
-    background-color: #0d0d0d; color: #f0f0f0;
-  }
-  header {
-    background: #1a1a1a; padding: 1rem;
-    display: flex; justify-content: space-between; align-items: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-  }
+  body { margin: 0; font-family: 'Nunito Sans', sans-serif; background-color: #0d0d0d; color: #f0f0f0; }
+  header { background: #1a1a1a; padding: 1rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.5);} 
   header h1 { margin: 0; font-size: 1.8rem; color: #ff3d00; }
-  nav button {
-    background: #ff3d00; border: none; color: #fff;
-    padding: 0.5rem 1rem; margin-left: 0.5rem;
-    border-radius: 5px; cursor: pointer;
-    font-weight: bold;
-  }
+  nav button { background: #ff3d00; border: none; color: #fff; padding: 0.5rem 1rem; margin-left: 0.5rem; border-radius: 5px; cursor: pointer; font-weight: bold;}
   nav button:hover { background: #ff5722; }
   main { padding: 1rem; }
   .series-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(250px,1fr)); gap: 1rem; }
-  .serie-card {
-    background: #1a1a1a; padding: 1rem; border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-  }
+  .serie-card { background: #1a1a1a; padding: 1rem; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.5);} 
   .serie-card img { width: 100%; border-radius: 5px; }
   .serie-card h2 { margin: 0.5rem 0 0.2rem 0; }
-  .episode-card {
-    background: #222; padding: 0.5rem; margin: 0.5rem 0; border-radius: 5px;
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  input, select, textarea {
-    width: 100%; padding: 0.5rem; margin: 0.3rem 0 0.8rem 0;
-    border-radius: 5px; border: none;
-  }
-  button.upload-btn {
-    background: #00bfa5; border: none; color: #fff;
-    padding: 0.7rem 1rem; border-radius: 5px; font-weight: bold;
-    cursor: pointer;
-  }
+  .episode-card { background: #222; padding: 0.5rem; margin: 0.5rem 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+  .episode-actions button { margin-left: 0.5rem; }
+  input, select, textarea { width: 100%; padding: 0.5rem; margin: 0.3rem 0 0.8rem 0; border-radius: 5px; border: none;}
+  button.upload-btn { background: #00bfa5; border: none; color: #fff; padding: 0.7rem 1rem; border-radius: 5px; font-weight: bold; cursor: pointer;}
   button.upload-btn:hover { background: #26a69a; }
+  button.modify-btn { background: #2979ff; color: #fff; border: none; padding: 0.4rem 0.8rem; border-radius: 5px; cursor: pointer; margin-left:0.5rem;}
+  button.modify-btn:hover { background: #1565c0; }
   video { width: 100%; max-height: 400px; border-radius: 5px; margin-top: 0.5rem; }
+  .hidden { display: none; }
 </style>
 </head>
 <body>
+<!-- Système d'inscription/connexion (voir explications plus bas) -->
+<div id="authContainer" style="display:none; background: #1a1a1a; color: #fff; position: fixed; top:0; left:0; right:0; bottom:0; z-index:10000; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+  <div style="background:#222; padding:2rem; border-radius:10px; width:320px;">
+    <h2 id="authTitle">Connexion</h2>
+    <div id="registerFields" style="display:none;">
+      <input type="text" id="registerUsername" placeholder="Nom d'utilisateur" style="width:100%; margin-bottom:0.7rem;" />
+      <input type="password" id="registerPassword" placeholder="Mot de passe" style="width:100%; margin-bottom:0.7rem;" />
+      <input type="password" id="registerPasswordConfirm" placeholder="Répéter mot de passe" style="width:100%; margin-bottom:0.7rem;" />
+      <button onclick="registerUser()" style="width:100%;background:#00bfa5; color:#fff; border:none; padding:0.7rem; border-radius:6px;font-weight:bold;">S'inscrire</button>
+      <p style="margin-top:1rem; font-size:0.95em;">Déjà un compte ? <a href="#" onclick="toggleAuthMode('login')" style="color:#ff3d00;">Connexion</a></p>
+    </div>
+    <div id="loginFields">
+      <input type="text" id="loginUsername" placeholder="Nom d'utilisateur" style="width:100%; margin-bottom:0.7rem;" />
+      <input type="password" id="loginPassword" placeholder="Mot de passe" style="width:100%; margin-bottom:0.7rem;" />
+      <button onclick="loginUser()" style="width:100%;background:#ff3d00; color:#fff; border:none; padding:0.7rem; border-radius:6px;font-weight:bold;">Se connecter</button>
+      <p style="margin-top:1rem; font-size:0.95em;">Pas encore de compte ? <a href="#" onclick="toggleAuthMode('register')" style="color:#00bfa5;">S'inscrire</a></p>
+    </div>
+    <p id="authMessage" style="color:#e53935; margin-top:0.6rem; min-height:1.2em;"></p>
+  </div>
+</div>
+<!-- Bouton déconnexion admin -->
+<button id="logoutBtn" onclick="logout()" style="position:fixed;top:1rem;right:1rem;z-index:2000;display:none;">Déconnexion</button>
 
 <header>
   <h1>Anime Forever</h1>
@@ -58,23 +58,50 @@
     <button onclick="showPage('pageUpload')">Ajouter Vidéo</button>
   </nav>
 </header>
-
 <main>
-  <!-- === Accueil / Liste des séries === -->
+  <!-- Accueil / Liste des séries -->
   <div id="pageAccueil">
     <h2>Nos Séries</h2>
     <div class="series-grid" id="seriesContainer"></div>
   </div>
 
-  <!-- === Page Série / Liste des épisodes === -->
+  <!-- Page Série / Liste des épisodes -->
   <div id="pageSerie" style="display:none;">
     <button onclick="showPage('pageAccueil')">← Retour aux séries</button>
     <h2 id="serieTitle"></h2>
+    <img id="serieImgDisplay" src="" alt="Image série" style="max-width:200px; border-radius:5px; display:block; margin-bottom:1rem;">
+    <!-- Bouton supprimer la série visible que pour l'admin -->
+    <button id="deleteSerieBtn" style="background:#e53935; color:#fff; margin-bottom:1rem; border:none; padding:0.5rem 1rem; border-radius:5px; cursor:pointer;display:none;" onclick="deleteSerie()">Supprimer la série</button>
+    <!-- Formulaire modification image -->
+    <div style="margin-bottom:1rem;">
+      <label for="editSerieImg">Changer l'image de la série :</label>
+      <input type="text" id="editSerieImg" placeholder="Nouvelle URL image...">
+      <button class="modify-btn" onclick="updateSerieImage()">Modifier</button>
+    </div>
+    <!-- Formulaire ajout épisode -->
+    <div style="margin-bottom:1rem;">
+      <details>
+        <summary style="cursor:pointer;">Ajouter un épisode à cette série</summary>
+        <div style="margin-top:0.5rem;">
+          <label>Pseudo de l'auteur :</label>
+          <input type="text" id="epPseudo" placeholder="Votre pseudo..." />
+          <label>Type de vidéo :</label>
+          <select id="epVideoType">
+            <option value="url">Lien externe (YouTube, etc.)</option>
+            <option value="local">Fichier local (mp4)</option>
+          </select>
+          <label id="epVideoLabel">URL de la vidéo :</label>
+          <input type="text" id="epVideoInput" placeholder="Lien vidéo ou fichier local..." />
+          <input type="file" id="epVideoFile" style="display:none;" accept="video/mp4"/>
+          <button class="upload-btn" onclick="addEpisodeToSerie()">Publier</button>
+        </div>
+      </details>
+    </div>
     <div id="episodesContainer"></div>
     <div id="videoPlayerContainer"></div>
   </div>
 
-  <!-- === Page Upload / Ajouter série ou épisode === -->
+  <!-- Page Upload / Ajouter série ou épisode (global) -->
   <div id="pageUpload" style="display:none;">
     <h2>Ajouter une Série ou un Épisode</h2>
     <label>Pseudo de l'auteur :</label>
@@ -96,124 +123,303 @@
     <button class="upload-btn" onclick="addEpisode()">Publier</button>
   </div>
 </main>
-
 <script>
-  /* === Données et stockage === */
-  let animeData = JSON.parse(localStorage.getItem('animeData')) || [];
+// === Authentification et admin ===
+const ADMIN_USERNAME = "AnimeForever-admin"; // Mets ici TON pseudo d'inscription admin
 
-  function saveData() { localStorage.setItem('animeData', JSON.stringify(animeData)); }
+function getUsers() {
+  return JSON.parse(localStorage.getItem('users')) || [];
+}
+function setUsers(users) {
+  localStorage.setItem('users', JSON.stringify(users));
+}
+function getCurrentUser() {
+  return localStorage.getItem('currentUser') || null;
+}
+function setCurrentUser(username) {
+  localStorage.setItem('currentUser', username);
+}
+function clearCurrentUser() {
+  localStorage.removeItem('currentUser');
+}
+function showAuth() {
+  document.body.style.overflow = "hidden";
+  document.getElementById('authContainer').style.display = 'flex';
+  document.getElementById('logoutBtn').style.display = "none";
+}
+function hideAuth() {
+  document.body.style.overflow = "";
+  document.getElementById('authContainer').style.display = 'none';
+  document.getElementById('logoutBtn').style.display = "";
+}
 
-  function showPage(pageId) {
-    document.querySelectorAll('main > div').forEach(p => p.style.display='none');
-    document.getElementById(pageId).style.display='block';
+// Par défaut : afficher auth si personne connecté
+window.addEventListener('DOMContentLoaded', function() {
+  if(!getCurrentUser()) {
+    showAuth();
+  } else {
+    hideAuth();
+    renderSeries();
   }
-
-  /* === Affichage des séries === */
-  function renderSeries() {
-    const container = document.getElementById('seriesContainer');
-    container.innerHTML = '';
-    if(animeData.length === 0) container.innerHTML = '<p>Aucune série pour le moment.</p>';
-    animeData.forEach((serie, index) => {
-      const card = document.createElement('div'); card.className='serie-card';
-      card.innerHTML = `
-        <img src="${serie.image || ''}" alt="${serie.name}">
-        <h2>${serie.name}</h2>
-        <p>${serie.desc || ''}</p>
-        <p>Ajouté par : ${serie.pseudo}</p>
-        <button onclick="showSerie(${index})">Voir la série</button>
-      `;
-      container.appendChild(card);
-    });
+  toggleDeleteButtons();
+});
+function logout() {
+  clearCurrentUser();
+  showAuth();
+}
+function toggleAuthMode(mode) {
+  document.getElementById('authMessage').innerText = '';
+  if(mode === 'register') {
+    document.getElementById('authTitle').innerText = "Inscription";
+    document.getElementById('registerFields').style.display = "";
+    document.getElementById('loginFields').style.display = "none";
+  } else {
+    document.getElementById('authTitle').innerText = "Connexion";
+    document.getElementById('registerFields').style.display = "none";
+    document.getElementById('loginFields').style.display = "";
   }
-
-  /* === Affichage d’une série et ses épisodes === */
-  function showSerie(index) {
-    const serie = animeData[index];
-    showPage('pageSerie');
-    document.getElementById('serieTitle').innerText = serie.name;
-    const container = document.getElementById('episodesContainer');
-    container.innerHTML = '';
-    if(!serie.episodes || serie.episodes.length===0) container.innerHTML='<p>Aucun épisode.</p>';
-    serie.episodes && serie.episodes.forEach((ep, i) => {
-      const epDiv = document.createElement('div'); epDiv.className='episode-card';
-      epDiv.innerHTML = `
-        <span>${ep.title} (Ajouté par: ${ep.pseudo})</span>
-        <span>
-          <button onclick="playVideo('${ep.type}','${ep.src.replaceAll("'", "\\'")}')">Regarder</button>
-          ${ep.type==='url'?`<a href="${ep.src}" target="_blank"><button>Télécharger</button></a>`:
-          `<a href="${URL.createObjectURL(ep.file)}" download><button>Télécharger</button></a>`}
-        </span>
-      `;
-      container.appendChild(epDiv);
-    });
-    document.getElementById('videoPlayerContainer').innerHTML='';
+}
+function registerUser() {
+  const username = document.getElementById('registerUsername').value.trim();
+  const password = document.getElementById('registerPassword').value;
+  const password2 = document.getElementById('registerPasswordConfirm').value;
+  const msg = document.getElementById('authMessage');
+  if(!username || !password || !password2) {
+    msg.innerText = "Remplis tous les champs.";
+    return;
   }
-
-  /* === Jouer une vidéo === */
-  function playVideo(type, src) {
-    const container = document.getElementById('videoPlayerContainer');
-    container.innerHTML='';
-    if(type==='url') {
-      container.innerHTML = `<iframe width="100%" height="400" src="${src}" frameborder="0" allowfullscreen></iframe>`;
-    } else {
-      const video = document.createElement('video'); video.controls=true;
-      video.src = src; container.appendChild(video);
-    }
+  if(password !== password2) {
+    msg.innerText = "Les mots de passe ne correspondent pas.";
+    return;
   }
-
-  /* === Ajouter série ou épisode === */
-  document.getElementById('videoType').addEventListener('change', function(){
-    if(this.value==='url'){
-      document.getElementById('videoInput').style.display='block';
-      document.getElementById('videoFile').style.display='none';
-      document.getElementById('videoLabel').innerText='URL de la vidéo :';
-    } else {
-      document.getElementById('videoInput').style.display='none';
-      document.getElementById('videoFile').style.display='block';
-      document.getElementById('videoLabel').innerText='Choisir un fichier vidéo :';
-    }
+  if(password.length < 4) {
+    msg.innerText = "Mot de passe trop court (min 4 caractères).";
+    return;
+  }
+  let users = getUsers();
+  if(users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+    msg.innerText = "Nom d'utilisateur déjà pris.";
+    return;
+  }
+  users.push({username, password});
+  setUsers(users);
+  setCurrentUser(username);
+  msg.innerText = "";
+  hideAuth();
+  location.reload();
+}
+function loginUser() {
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const msg = document.getElementById('authMessage');
+  if(!username || !password) {
+    msg.innerText = "Remplis tous les champs.";
+    return;
+  }
+  let users = getUsers();
+  let user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+  if(!user || user.password !== password) {
+    msg.innerText = "Identifiants incorrects.";
+    return;
+  }
+  setCurrentUser(username);
+  msg.innerText = "";
+  hideAuth();
+  location.reload();
+}
+// === Données et stockage ===
+let animeData = JSON.parse(localStorage.getItem('animeData')) || [];
+let currentSerieIndex = null;
+function saveData() { localStorage.setItem('animeData', JSON.stringify(animeData)); }
+function showPage(pageId) {
+  document.querySelectorAll('main > div').forEach(p => p.style.display='none');
+  document.getElementById(pageId).style.display='block';
+  if(pageId !== 'pageSerie') resetEpisodeForm();
+  toggleDeleteButtons();
+}
+function renderSeries() {
+  const container = document.getElementById('seriesContainer');
+  container.innerHTML = '';
+  if(animeData.length === 0) container.innerHTML = '<p>Aucune série pour le moment.</p>';
+  animeData.forEach((serie, index) => {
+    const card = document.createElement('div'); card.className='serie-card';
+    card.innerHTML = `
+      <img src="${serie.image || ''}" alt="${serie.name}">
+      <h2>${serie.name}</h2>
+      <p>${serie.desc || ''}</p>
+      <p>Ajouté par : ${serie.pseudo}</p>
+      <button onclick="showSerie(${index})">Voir la série</button>
+    `;
+    container.appendChild(card);
   });
-
-  function addEpisode() {
-    const pseudo = document.getElementById('pseudo').value.trim();
-    const serieName = document.getElementById('serieName').value.trim();
-    const serieDesc = document.getElementById('serieDesc').value.trim();
-    const serieImg = document.getElementById('serieImg').value.trim();
-    const videoType = document.getElementById('videoType').value;
-    const videoSrc = videoType==='url'?document.getElementById('videoInput').value.trim():null;
-    const videoFile = videoType==='local'?document.getElementById('videoFile').files[0]:null;
-
-    if(!pseudo || !serieName || (!videoSrc && !videoFile)) { alert('Veuillez remplir les champs requis.'); return; }
-
-    // Chercher série existante
-    let serie = animeData.find(s=>s.name.toLowerCase()===serieName.toLowerCase());
-    if(!serie){
-      serie = {name:serieName, desc:serieDesc, image:serieImg, pseudo:pseudo, episodes:[]};
-      animeData.push(serie);
-    }
-
-    // Ajouter épisode
-    const epTitle = `Épisode ${serie.episodes.length+1}`;
-    if(videoType==='url'){
-      serie.episodes.push({title:epTitle, type:'url', src:videoSrc, pseudo:pseudo});
-    } else {
-      serie.episodes.push({title:epTitle, type:'local', file:videoFile, pseudo:pseudo, src:URL.createObjectURL(videoFile)});
-    }
-
-    saveData(); renderSeries();
-    alert('Vidéo publiée avec succès !');
-    showPage('pageAccueil');
-    document.getElementById('pseudo').value='';
-    document.getElementById('serieName').value='';
-    document.getElementById('serieDesc').value='';
-    document.getElementById('serieImg').value='';
-    document.getElementById('videoInput').value='';
-    document.getElementById('videoFile').value='';
+}
+// Affichage d’une série et ses épisodes, gestion admin
+function showSerie(index) {
+  currentSerieIndex = index;
+  const serie = animeData[index];
+  showPage('pageSerie');
+  document.getElementById('serieTitle').innerText = serie.name;
+  document.getElementById('serieImgDisplay').src = serie.image || '';
+  document.getElementById('editSerieImg').value = serie.image || '';
+  // Affiche bouton supprimer la série QUE pour admin
+  document.getElementById('deleteSerieBtn').style.display = (getCurrentUser()===ADMIN_USERNAME) ? "" : "none";
+  const container = document.getElementById('episodesContainer');
+  container.innerHTML = '';
+  if(!serie.episodes || serie.episodes.length===0) container.innerHTML='<p>Aucun épisode.</p>';
+  serie.episodes && serie.episodes.forEach((ep, i) => {
+    const epDiv = document.createElement('div'); epDiv.className='episode-card';
+    epDiv.innerHTML = `
+      <span>${ep.title} (Ajouté par: ${ep.pseudo})</span>
+      <span class="episode-actions">
+        <button onclick="playVideo('${ep.type}','${ep.src.replaceAll("'", "\\'")}')">Regarder</button>
+        ${ep.type==='url'?`<a href="${ep.src}" target="_blank"><button>Télécharger</button></a>`:
+        `<a href="${URL.createObjectURL(ep.file)}" download><button>Télécharger</button></a>`}
+        ${
+          getCurrentUser() === ADMIN_USERNAME
+          ? `<button style="background:#e53935; color:#fff;" onclick="deleteEpisode(${i})">Supprimer</button>`
+          : ''
+        }
+      </span>
+    `;
+    container.appendChild(epDiv);
+  });
+  document.getElementById('videoPlayerContainer').innerHTML='';
+  resetEpisodeForm();
+}
+function deleteEpisode(epIndex) {
+  if(currentSerieIndex === null) return;
+  if(getCurrentUser() !== ADMIN_USERNAME) {
+    alert("Seul l'administrateur peut supprimer un épisode.");
+    return;
   }
-
-  // === Initialisation ===
+  if(confirm('Supprimer cet épisode ?')) {
+    animeData[currentSerieIndex].episodes.splice(epIndex,1);
+    saveData();
+    showSerie(currentSerieIndex);
+  }
+}
+function deleteSerie() {
+  if(currentSerieIndex === null) return;
+  if(getCurrentUser() !== ADMIN_USERNAME) {
+    alert("Seul l'administrateur peut supprimer une série.");
+    return;
+  }
+  if(confirm('Supprimer cette série et tous ses épisodes ?')) {
+    animeData.splice(currentSerieIndex,1);
+    saveData();
+    showPage('pageAccueil');
+    renderSeries();
+  }
+}
+function playVideo(type, src) {
+  const container = document.getElementById('videoPlayerContainer');
+  container.innerHTML='';
+  if(type==='url') {
+    container.innerHTML = `<iframe width="100%" height="400" src="${src}" frameborder="0" allowfullscreen></iframe>`;
+  } else {
+    const video = document.createElement('video'); video.controls=true;
+    video.src = src; container.appendChild(video);
+  }
+}
+// Ajout épisode direct dans une série
+document.getElementById('epVideoType').addEventListener('change', function(){
+  if(this.value==='url'){
+    document.getElementById('epVideoInput').style.display='block';
+    document.getElementById('epVideoFile').style.display='none';
+    document.getElementById('epVideoLabel').innerText='URL de la vidéo :';
+  } else {
+    document.getElementById('epVideoInput').style.display='none';
+    document.getElementById('epVideoFile').style.display='block';
+    document.getElementById('epVideoLabel').innerText='Choisir un fichier vidéo :';
+  }
+});
+function addEpisodeToSerie() {
+  if(currentSerieIndex === null) return;
+  const pseudo = document.getElementById('epPseudo').value.trim();
+  const videoType = document.getElementById('epVideoType').value;
+  const videoSrc = videoType==='url'?document.getElementById('epVideoInput').value.trim():null;
+  const videoFile = videoType==='local'?document.getElementById('epVideoFile').files[0]:null;
+  if(!pseudo || (!videoSrc && !videoFile)) { alert('Veuillez remplir les champs requis.'); return; }
+  const serie = animeData[currentSerieIndex];
+  const epTitle = `Épisode ${serie.episodes.length+1}`;
+  if(videoType==='url'){
+    serie.episodes.push({title:epTitle, type:'url', src:videoSrc, pseudo:pseudo});
+  } else {
+    serie.episodes.push({title:epTitle, type:'local', file:videoFile, pseudo:pseudo, src:URL.createObjectURL(videoFile)});
+  }
+  saveData(); showSerie(currentSerieIndex);
+  alert('Épisode ajouté à la série !');
+  resetEpisodeForm();
+}
+function resetEpisodeForm() {
+  document.getElementById('epPseudo').value='';
+  document.getElementById('epVideoInput').value='';
+  document.getElementById('epVideoFile').value='';
+}
+// Modification image série
+function updateSerieImage() {
+  if(currentSerieIndex === null) return;
+  const imgUrl = document.getElementById('editSerieImg').value.trim();
+  animeData[currentSerieIndex].image = imgUrl;
+  saveData();
+  document.getElementById('serieImgDisplay').src = imgUrl;
   renderSeries();
-</script>
+  alert('Image de la série modifiée !');
+}
+// Ajout classique série ou épisode
+document.getElementById('videoType').addEventListener('change', function(){
+  if(this.value==='url'){
+    document.getElementById('videoInput').style.display='block';
+    document.getElementById('videoFile').style.display='none';
+    document.getElementById('videoLabel').innerText='URL de la vidéo :';
+  } else {
+    document.getElementById('videoInput').style.display='none';
+    document.getElementById('videoFile').style.display='block';
+    document.getElementById('videoLabel').innerText='Choisir un fichier vidéo :';
+  }
+});
+function addEpisode() {
+  const pseudo = document.getElementById('pseudo').value.trim();
+  const serieName = document.getElementById('serieName').value.trim();
+  const serieDesc = document.getElementById('serieDesc').value.trim();
+  const serieImg = document.getElementById('serieImg').value.trim();
+  const videoType = document.getElementById('videoType').value;
+  const videoSrc = videoType==='url'?document.getElementById('videoInput').value.trim():null;
+  const videoFile = videoType==='local'?document.getElementById('videoFile').files[0]:null;
 
+  if(!pseudo || !serieName || (!videoSrc && !videoFile)) { alert('Veuillez remplir les champs requis.'); return; }
+  let serie = animeData.find(s=>s.name.toLowerCase()===serieName.toLowerCase());
+  if(!serie){
+    serie = {name:serieName, desc:serieDesc, image:serieImg, pseudo:pseudo, episodes:[]};
+    animeData.push(serie);
+  } else if(serieImg) {
+    serie.image = serieImg; // Remplace image si renseignée lors de l'ajout d'un épisode à une série existante
+  }
+  const epTitle = `Épisode ${serie.episodes.length+1}`;
+  if(videoType==='url'){
+    serie.episodes.push({title:epTitle, type:'url', src:videoSrc, pseudo:pseudo});
+  } else {
+    serie.episodes.push({title:epTitle, type:'local', file:videoFile, pseudo:pseudo, src:URL.createObjectURL(videoFile)});
+  }
+  saveData(); renderSeries();
+  alert('Vidéo publiée avec succès !');
+  showPage('pageAccueil');
+  document.getElementById('pseudo').value='';
+  document.getElementById('serieName').value='';
+  document.getElementById('serieDesc').value='';
+  document.getElementById('serieImg').value='';
+  document.getElementById('videoInput').value='';
+  document.getElementById('videoFile').value='';
+}
+function toggleDeleteButtons() {
+  // Affiche ou cache les boutons de suppression selon l'utilisateur connecté (pour page série)
+  if(document.getElementById('deleteSerieBtn')) {
+    document.getElementById('deleteSerieBtn').style.display = (getCurrentUser()===ADMIN_USERNAME) ? "" : "none";
+  }
+  // Les boutons "Supprimer" des épisodes sont générés dans showSerie avec la même condition.
+}
+// Initialisation
+// renderSeries(); <-- déjà appelé après connexion dans DOMContentLoaded !
+</script>
 </body>
-</html>
+      </html>
