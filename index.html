@@ -118,154 +118,327 @@
   <div id="seriesModal" class="modal hidden"></div>
 
 <script>
-// Configuration - ADAPTEZ CES URL À VOTRE API
-const API_BASE = '/api'; // Changez selon votre configuration serveur
-let token = localStorage.getItem('token') || null;
-let currentUser = null;
+// =============================================
+// BACKEND SIMULÉ INTÉGRÉ - Fonctionne sans serveur
+// =============================================
 
-// Test des endpoints disponibles
-async function testEndpoints() {
-  console.log('Test des endpoints API...');
-  
-  // Test endpoint séries
-  try {
-    const response = await fetch(API_BASE + '/series');
-    console.log('GET /api/series:', response.status, response.statusText);
-  } catch (e) {
-    console.log('GET /api/series: Erreur', e.message);
+class AnimeForeverBackend {
+  constructor() {
+    this.users = new Map();
+    this.series = new Map();
+    this.tokens = new Map();
+    this.nextSeriesId = 1;
+    this.nextEpisodeId = 1;
+    
+    // Données d'exemple
+    this.initializeSampleData();
   }
-  
-  // Test endpoint login
-  try {
-    const response = await fetch(API_BASE + '/login', { method: 'POST' });
-    console.log('POST /api/login:', response.status, response.statusText);
-  } catch (e) {
-    console.log('POST /api/login: Erreur', e.message);
+
+  initializeSampleData() {
+    // Ajouter un admin par défaut
+    this.users.set('admin', {
+      username: 'admin',
+      password: 'admin123',
+      isAdmin: true
+    });
+
+    // Ajouter des séries d'exemple
+    this.series.set('1', {
+      id: '1',
+      name: 'Naruto Shippuden',
+      desc: 'Suite des aventures de Naruto Uzumaki',
+      image: 'https://via.placeholder.com/300x140/1a1a1a/ff3d00?text=Naruto+Shippuden',
+      pseudo: 'admin',
+      episodes: [
+        {
+          id: '1-1',
+          title: 'Épisode 1: Retour au village',
+          src: 'https://example.com/video1.mp4',
+          pseudo: 'admin'
+        }
+      ]
+    });
+
+    this.series.set('2', {
+      id: '2',
+      name: 'Attack on Titan',
+      desc: 'Des géants menacent l\'humanité',
+      image: 'https://via.placeholder.com/300x140/1a1a1a/00bfa5?text=Attack+on+Titan',
+      pseudo: 'admin',
+      episodes: [
+        {
+          id: '2-1',
+          title: 'Épisode 1: À vous de mourir',
+          src: 'https://example.com/video2.mp4',
+          pseudo: 'admin'
+        }
+      ]
+    });
+  }
+
+  // Générer un token JWT simulé
+  generateToken(username) {
+    const token = 'mock-token-' + Date.now() + '-' + Math.random().toString(36).substr(2);
+    this.tokens.set(token, username);
+    return token;
+  }
+
+  verifyToken(token) {
+    const username = this.tokens.get(token);
+    if (!username) return null;
+    
+    const user = this.users.get(username);
+    if (!user) return null;
+
+    return {
+      username: user.username,
+      isAdmin: user.isAdmin
+    };
+  }
+
+  // Méthodes API
+  async login(username, password) {
+    await this.delay(1000);
+    
+    const user = this.users.get(username);
+    if (!user || user.password !== password) {
+      throw new Error('Identifiants incorrects');
+    }
+
+    const token = this.generateToken(username);
+    return {
+      token,
+      user: {
+        username: user.username,
+        isAdmin: user.isAdmin
+      }
+    };
+  }
+
+  async register(username, password) {
+    await this.delay(1000);
+    
+    if (this.users.has(username)) {
+      throw new Error('Ce pseudo est déjà pris');
+    }
+
+    if (username.length < 3) {
+      throw new Error('Le pseudo doit contenir au moins 3 caractères');
+    }
+
+    if (password.length < 6) {
+      throw new Error('Le mot de passe doit contenir au moins 6 caractères');
+    }
+
+    this.users.set(username, {
+      username,
+      password,
+      isAdmin: false
+    });
+
+    const token = this.generateToken(username);
+    return {
+      token,
+      user: {
+        username,
+        isAdmin: false
+      }
+    };
+  }
+
+  async getMe(token) {
+    await this.delay(500);
+    const user = this.verifyToken(token);
+    if (!user) {
+      throw new Error('Token invalide');
+    }
+    return user;
+  }
+
+  async getSeries() {
+    await this.delay(500);
+    return Array.from(this.series.values());
+  }
+
+  async createSeries(data, token) {
+    await this.delay(500);
+    
+    const user = this.verifyToken(token);
+    if (!user) {
+      throw new Error('Non authentifié');
+    }
+
+    const seriesId = (this.nextSeriesId++).toString();
+    const newSeries = {
+      id: seriesId,
+      name: data.name,
+      desc: data.desc,
+      image: data.image,
+      pseudo: user.username,
+      episodes: []
+    };
+
+    this.series.set(seriesId, newSeries);
+    return newSeries;
+  }
+
+  async addEpisode(seriesId, data, token) {
+    await this.delay(500);
+    
+    const user = this.verifyToken(token);
+    if (!user) {
+      throw new Error('Non authentifié');
+    }
+
+    const series = this.series.get(seriesId);
+    if (!series) {
+      throw new Error('Série non trouvée');
+    }
+
+    const episodeId = seriesId + '-' + (this.nextEpisodeId++);
+    const newEpisode = {
+      id: episodeId,
+      title: data.title || 'Épisode sans titre',
+      src: data.src || '#',
+      pseudo: user.username
+    };
+
+    series.episodes.push(newEpisode);
+    return newEpisode;
+  }
+
+  async deleteSeries(seriesId, token) {
+    await this.delay(500);
+    
+    const user = this.verifyToken(token);
+    if (!user || !user.isAdmin) {
+      throw new Error('Action non autorisée');
+    }
+
+    if (!this.series.has(seriesId)) {
+      throw new Error('Série non trouvée');
+    }
+
+    this.series.delete(seriesId);
+    return { success: true };
+  }
+
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 
-// Fonction fetch adaptative
+// =============================================
+// FRONTEND - Interface utilisateur
+// =============================================
+
+// Initialiser le backend simulé
+const backend = new AnimeForeverBackend();
+let token = localStorage.getItem('token') || null;
+let currentUser = null;
+
+// Fonction fetch qui utilise le backend simulé
 async function apiFetch(endpoint, opts = {}) {
-  const url = API_BASE + endpoint;
-  
-  opts.headers = opts.headers || {};
-  
-  // Ajouter le token d'authentification si disponible
-  if (token && !endpoint.includes('/login') && !endpoint.includes('/register')) {
-    opts.headers['Authorization'] = 'Bearer ' + token;
-  }
-  
-  // Gérer le body pour les requêtes JSON
-  if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
-    opts.headers['Content-Type'] = 'application/json';
-    opts.body = JSON.stringify(opts.body);
-  }
+  // Simuler un délai réseau
+  await new Promise(resolve => setTimeout(resolve, 100));
 
   try {
-    console.log(`API Call: ${opts.method || 'GET'} ${url}`);
-    const response = await fetch(url, opts);
-    return response;
-  } catch (networkError) {
-    console.error('Erreur réseau:', networkError);
+    let result;
+
+    switch (endpoint) {
+      case '/login':
+        if (opts.method === 'POST') {
+          const body = JSON.parse(opts.body);
+          result = await backend.login(body.username, body.password);
+        }
+        break;
+
+      case '/register':
+        if (opts.method === 'POST') {
+          const body = JSON.parse(opts.body);
+          result = await backend.register(body.username, body.password);
+        }
+        break;
+
+      case '/me':
+        if (!token) throw new Error('Non authentifié');
+        result = await backend.getMe(token);
+        break;
+
+      case '/series':
+        if (opts.method === 'GET') {
+          result = await backend.getSeries();
+        } else if (opts.method === 'POST') {
+          const body = JSON.parse(opts.body);
+          result = await backend.createSeries(body, token);
+        }
+        break;
+
+      case '/series/episodes':
+        if (opts.method === 'POST') {
+          const body = JSON.parse(opts.body);
+          // Extraire seriesId de l'URL si nécessaire
+          const seriesId = body.seriesId;
+          result = await backend.addEpisode(seriesId, body, token);
+        }
+        break;
+
+      default:
+        // Gérer les routes avec paramètres comme /series/123
+        if (endpoint.startsWith('/series/') && opts.method === 'DELETE') {
+          const seriesId = endpoint.split('/')[2];
+          result = await backend.deleteSeries(seriesId, token);
+        }
+        break;
+    }
+
+    if (result) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => result
+      };
+    } else {
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({ error: 'Endpoint non trouvé' })
+      };
+    }
+
+  } catch (error) {
     return {
       ok: false,
-      status: 0,
-      json: async () => ({ error: 'Impossible de se connecter au serveur' })
+      status: 400,
+      json: async () => ({ error: error.message })
     };
   }
 }
 
 // Fonction utilitaire pour traiter les réponses
 async function handleResponse(response) {
-  console.log(`Response: ${response.status} ${response.statusText}`);
-  
-  if (response.status === 405) {
-    return { 
-      success: false, 
-      error: 'Méthode non autorisée. Vérifiez la configuration du serveur.' 
-    };
-  }
-  
-  if (response.status === 404) {
-    return { 
-      success: false, 
-      error: 'Endpoint non trouvé. Vérifiez les routes API.' 
-    };
-  }
+  const data = await response.json();
   
   if (!response.ok) {
-    try {
-      const errorData = await response.json();
-      return { 
-        success: false, 
-        error: errorData.error || `Erreur ${response.status}: ${response.statusText}` 
-      };
-    } catch (e) {
-      return { 
-        success: false, 
-        error: `Erreur ${response.status}: ${response.statusText}` 
-      };
-    }
+    return { success: false, error: data.error || 'Erreur serveur' };
   }
 
-  try {
-    // Pour les réponses 204 No Content
-    if (response.status === 204) {
-      return { success: true, data: {} };
-    }
-    
-    const data = await response.json();
-    return { success: true, data };
-  } catch (e) {
-    return { success: false, error: 'Réponse serveur invalide (non-JSON)' };
-  }
-}
-
-// Fonctions d'authentification avec fallbacks
-async function authRequest(endpoint, credentials) {
-  const response = await apiFetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: credentials
-  });
-
-  const result = await handleResponse(response);
-  
-  if (!result.success) {
-    throw new Error(result.error);
-  }
-
-  return result.data;
+  return { success: true, data };
 }
 
 async function loadMe() {
   if (!token) return;
   
   try {
-    // Essayer différents endpoints possibles pour /me
-    const endpoints = ['/me', '/user', '/auth/me'];
+    const response = await apiFetch('/me');
+    const result = await handleResponse(response);
     
-    for (const endpoint of endpoints) {
-      try {
-        const response = await apiFetch(endpoint);
-        const result = await handleResponse(response);
-        
-        if (result.success && result.data.username) {
-          currentUser = result.data;
-          updateUIAfterAuth();
-          return;
-        }
-      } catch (e) {
-        console.log(`Endpoint ${endpoint} non disponible:`, e.message);
-        continue;
-      }
+    if (result.success && result.data.username) {
+      currentUser = result.data;
+      updateUIAfterAuth();
+    } else {
+      await handleLogout();
     }
-    
-    // Si aucun endpoint ne fonctionne
-    await handleLogout();
-    
   } catch (e) { 
     console.error('Erreur loadMe:', e);
     await handleLogout();
@@ -380,17 +553,26 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
   setLoading(document.getElementById('loginBtn'), true);
 
   try {
-    const data = await authRequest('/login', { username, password });
+    const response = await apiFetch('/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password })
+    });
 
-    token = data.token;
-    localStorage.setItem('token', token);
-    currentUser = data.user;
-    
-    showAuthMessage('authMsg', 'Connexion réussie !', false);
-    setTimeout(() => {
-      updateUIAfterAuth();
-      renderSeries();
-    }, 1000);
+    const result = await handleResponse(response);
+
+    if (result.success) {
+      token = result.data.token;
+      localStorage.setItem('token', token);
+      currentUser = result.data.user;
+      
+      showAuthMessage('authMsg', 'Connexion réussie !', false);
+      setTimeout(() => {
+        updateUIAfterAuth();
+        renderSeries();
+      }, 1000);
+    } else {
+      throw new Error(result.error);
+    }
 
   } catch (error) {
     showAuthMessage('authMsg', error.message);
@@ -425,17 +607,26 @@ document.getElementById('regBtn').addEventListener('click', async () => {
   setLoading(document.getElementById('regBtn'), true);
 
   try {
-    const data = await authRequest('/register', { username, password });
+    const response = await apiFetch('/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, password })
+    });
 
-    token = data.token;
-    localStorage.setItem('token', token);
-    currentUser = data.user;
-    
-    showAuthMessage('regMsg', 'Inscription réussie !', false);
-    setTimeout(() => {
-      updateUIAfterAuth();
-      renderSeries();
-    }, 1000);
+    const result = await handleResponse(response);
+
+    if (result.success) {
+      token = result.data.token;
+      localStorage.setItem('token', token);
+      currentUser = result.data.user;
+      
+      showAuthMessage('regMsg', 'Inscription réussie !', false);
+      setTimeout(() => {
+        updateUIAfterAuth();
+        renderSeries();
+      }, 1000);
+    } else {
+      throw new Error(result.error);
+    }
 
   } catch (error) {
     showAuthMessage('regMsg', error.message);
@@ -536,7 +727,7 @@ async function submitCreate() {
   try {
     const response = await apiFetch('/series', {
       method: 'POST',
-      body: { name, desc, image, pseudo }
+      body: JSON.stringify({ name, desc, image, pseudo })
     });
 
     const result = await handleResponse(response);
@@ -547,7 +738,7 @@ async function submitCreate() {
       document.getElementById('createDesc').value = '';
       document.getElementById('createImg').value = '';
       clearEpBlocks();
-      showSection('home');
+      show
     } else {
       alert('Erreur: ' + result.error);
     }
@@ -558,8 +749,8 @@ async function submitCreate() {
 
 // Initialisation
 (async () => {
-  // Tester les endpoints au démarrage
-  await testEndpoints();
+  console.log('Anime Forever - Backend simulé intégré');
+  console.log('Compte admin disponible: admin / admin123');
   
   if (token) {
     await loadMe();
