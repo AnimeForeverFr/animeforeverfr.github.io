@@ -36,6 +36,9 @@
     .auth-form{display:block;}
     .auth-form.hidden{display:none;}
     .loading{opacity:0.6;pointer-events:none;}
+    .episode-block{background:#222;padding:.8rem;border-radius:6px;margin-bottom:.5rem;}
+    .episode-block input{margin:.3rem 0;}
+    video{width:100%;max-height:400px;border-radius:6px;background:#000;}
   </style>
 </head>
 <body>
@@ -53,6 +56,7 @@
         <button id="loginBtn" class="btn" style="flex:1;">Se connecter</button>
       </div>
       <p id="authMsg" class="muted" style="margin-top:1rem;"></p>
+      <p class="muted" style="margin-top:1rem;font-size:0.9rem;">💡 Compte admin : <strong>admin</strong> / <strong>admin</strong></p>
     </div>
 
     <div id="registerForm" class="auth-form hidden">
@@ -106,7 +110,7 @@
           <button class="btn" onclick="addEpBlock()">+ Ajouter épisode</button>
           <button class="btn" onclick="clearEpBlocks()">Réinitialiser</button>
         </div>
-        <p class="muted">Les fichiers locaux seront uploadés sur le serveur si configuré.</p>
+        <p class="muted">Choisissez un fichier local OU entrez une URL de vidéo.</p>
         <div style="margin-top:.6rem">
           <button class="btn" onclick="submitCreate()">Créer la série</button>
         </div>
@@ -118,323 +122,45 @@
   <div id="seriesModal" class="modal hidden"></div>
 
 <script>
-// =============================================
-// BACKEND SIMULÉ INTÉGRÉ - Fonctionne sans serveur
-// =============================================
-
-class AnimeForeverBackend {
-  constructor() {
-    this.users = new Map();
-    this.series = new Map();
-    this.tokens = new Map();
-    this.nextSeriesId = 1;
-    this.nextEpisodeId = 1;
-    
-    // Données d'exemple
-    this.initializeSampleData();
-  }
-
-  initializeSampleData() {
-    // Ajouter un admin par défaut
-    this.users.set('admin', {
-      username: 'admin',
-      password: 'admin123',
-      isAdmin: true
-    });
-
-    // Ajouter des séries d'exemple
-    this.series.set('1', {
-      id: '1',
-      name: 'Naruto Shippuden',
-      desc: 'Suite des aventures de Naruto Uzumaki',
-      image: 'https://via.placeholder.com/300x140/1a1a1a/ff3d00?text=Naruto+Shippuden',
-      pseudo: 'admin',
-      episodes: [
-        {
-          id: '1-1',
-          title: 'Épisode 1: Retour au village',
-          src: 'https://example.com/video1.mp4',
-          pseudo: 'admin'
-        }
-      ]
-    });
-
-    this.series.set('2', {
-      id: '2',
-      name: 'Attack on Titan',
-      desc: 'Des géants menacent l\'humanité',
-      image: 'https://via.placeholder.com/300x140/1a1a1a/00bfa5?text=Attack+on+Titan',
-      pseudo: 'admin',
-      episodes: [
-        {
-          id: '2-1',
-          title: 'Épisode 1: À vous de mourir',
-          src: 'https://example.com/video2.mp4',
-          pseudo: 'admin'
-        }
-      ]
-    });
-  }
-
-  // Générer un token JWT simulé
-  generateToken(username) {
-    const token = 'mock-token-' + Date.now() + '-' + Math.random().toString(36).substr(2);
-    this.tokens.set(token, username);
-    return token;
-  }
-
-  verifyToken(token) {
-    const username = this.tokens.get(token);
-    if (!username) return null;
-    
-    const user = this.users.get(username);
-    if (!user) return null;
-
-    return {
-      username: user.username,
-      isAdmin: user.isAdmin
-    };
-  }
-
-  // Méthodes API
-  async login(username, password) {
-    await this.delay(1000);
-    
-    const user = this.users.get(username);
-    if (!user || user.password !== password) {
-      throw new Error('Identifiants incorrects');
-    }
-
-    const token = this.generateToken(username);
-    return {
-      token,
-      user: {
-        username: user.username,
-        isAdmin: user.isAdmin
-      }
-    };
-  }
-
-  async register(username, password) {
-    await this.delay(1000);
-    
-    if (this.users.has(username)) {
-      throw new Error('Ce pseudo est déjà pris');
-    }
-
-    if (username.length < 3) {
-      throw new Error('Le pseudo doit contenir au moins 3 caractères');
-    }
-
-    if (password.length < 6) {
-      throw new Error('Le mot de passe doit contenir au moins 6 caractères');
-    }
-
-    this.users.set(username, {
-      username,
-      password,
-      isAdmin: false
-    });
-
-    const token = this.generateToken(username);
-    return {
-      token,
-      user: {
-        username,
-        isAdmin: false
-      }
-    };
-  }
-
-  async getMe(token) {
-    await this.delay(500);
-    const user = this.verifyToken(token);
-    if (!user) {
-      throw new Error('Token invalide');
-    }
-    return user;
-  }
-
-  async getSeries() {
-    await this.delay(500);
-    return Array.from(this.series.values());
-  }
-
-  async createSeries(data, token) {
-    await this.delay(500);
-    
-    const user = this.verifyToken(token);
-    if (!user) {
-      throw new Error('Non authentifié');
-    }
-
-    const seriesId = (this.nextSeriesId++).toString();
-    const newSeries = {
-      id: seriesId,
-      name: data.name,
-      desc: data.desc,
-      image: data.image,
-      pseudo: user.username,
-      episodes: []
-    };
-
-    this.series.set(seriesId, newSeries);
-    return newSeries;
-  }
-
-  async addEpisode(seriesId, data, token) {
-    await this.delay(500);
-    
-    const user = this.verifyToken(token);
-    if (!user) {
-      throw new Error('Non authentifié');
-    }
-
-    const series = this.series.get(seriesId);
-    if (!series) {
-      throw new Error('Série non trouvée');
-    }
-
-    const episodeId = seriesId + '-' + (this.nextEpisodeId++);
-    const newEpisode = {
-      id: episodeId,
-      title: data.title || 'Épisode sans titre',
-      src: data.src || '#',
-      pseudo: user.username
-    };
-
-    series.episodes.push(newEpisode);
-    return newEpisode;
-  }
-
-  async deleteSeries(seriesId, token) {
-    await this.delay(500);
-    
-    const user = this.verifyToken(token);
-    if (!user || !user.isAdmin) {
-      throw new Error('Action non autorisée');
-    }
-
-    if (!this.series.has(seriesId)) {
-      throw new Error('Série non trouvée');
-    }
-
-    this.series.delete(seriesId);
-    return { success: true };
-  }
-
-  delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-}
-
-// =============================================
-// FRONTEND - Interface utilisateur
-// =============================================
-
-// Initialiser le backend simulé
-const backend = new AnimeForeverBackend();
+const API_ROOT = '';
 let token = localStorage.getItem('token') || null;
 let currentUser = null;
 
-// Fonction fetch qui utilise le backend simulé
-async function apiFetch(endpoint, opts = {}) {
-  // Simuler un délai réseau
-  await new Promise(resolve => setTimeout(resolve, 100));
-
-  try {
-    let result;
-
-    switch (endpoint) {
-      case '/login':
-        if (opts.method === 'POST') {
-          const body = JSON.parse(opts.body);
-          result = await backend.login(body.username, body.password);
-        }
-        break;
-
-      case '/register':
-        if (opts.method === 'POST') {
-          const body = JSON.parse(opts.body);
-          result = await backend.register(body.username, body.password);
-        }
-        break;
-
-      case '/me':
-        if (!token) throw new Error('Non authentifié');
-        result = await backend.getMe(token);
-        break;
-
-      case '/series':
-        if (opts.method === 'GET') {
-          result = await backend.getSeries();
-        } else if (opts.method === 'POST') {
-          const body = JSON.parse(opts.body);
-          result = await backend.createSeries(body, token);
-        }
-        break;
-
-      case '/series/episodes':
-        if (opts.method === 'POST') {
-          const body = JSON.parse(opts.body);
-          // Extraire seriesId de l'URL si nécessaire
-          const seriesId = body.seriesId;
-          result = await backend.addEpisode(seriesId, body, token);
-        }
-        break;
-
-      default:
-        // Gérer les routes avec paramètres comme /series/123
-        if (endpoint.startsWith('/series/') && opts.method === 'DELETE') {
-          const seriesId = endpoint.split('/')[2];
-          result = await backend.deleteSeries(seriesId, token);
-        }
-        break;
-    }
-
-    if (result) {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => result
-      };
-    } else {
-      return {
-        ok: false,
-        status: 404,
-        json: async () => ({ error: 'Endpoint non trouvé' })
-      };
-    }
-
-  } catch (error) {
-    return {
-      ok: false,
-      status: 400,
-      json: async () => ({ error: error.message })
-    };
+async function apiFetch(url, opts = {}) {
+  opts.headers = opts.headers || {};
+  if (token && !url.includes('/login') && !url.includes('/register')) {
+    opts.headers['Authorization'] = 'Bearer ' + token;
   }
-}
-
-// Fonction utilitaire pour traiter les réponses
-async function handleResponse(response) {
-  const data = await response.json();
   
-  if (!response.ok) {
-    return { success: false, error: data.error || 'Erreur serveur' };
+  if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(opts.body);
   }
 
-  return { success: true, data };
+  const response = await fetch(API_ROOT + url, opts);
+  const text = await response.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (e) {
+    throw new Error('Réponse serveur invalide');
+  }
+  
+  return {
+    ok: response.ok,
+    status: response.status,
+    json: () => Promise.resolve(data)
+  };
 }
 
 async function loadMe() {
   if (!token) return;
-  
   try {
-    const response = await apiFetch('/me');
-    const result = await handleResponse(response);
+    const res = await apiFetch('/api/me');
+    const json = await res.json();
     
-    if (result.success && result.data.username) {
-      currentUser = result.data;
+    if (res.ok && json.username) {
+      currentUser = json;
       updateUIAfterAuth();
     } else {
       await handleLogout();
@@ -506,37 +232,19 @@ function showAuthMessage(elementId, message, isError = true) {
   element.className = isError ? 'error' : 'success';
 }
 
-function setLoading(button, isLoading) {
+function setLoading(button, isLoading, originalText) {
   if (isLoading) {
     button.classList.add('loading');
     button.disabled = true;
+    button.dataset.originalText = button.innerHTML;
     button.innerHTML = 'Chargement...';
   } else {
     button.classList.remove('loading');
     button.disabled = false;
-    button.innerHTML = button === document.getElementById('loginBtn') ? 'Se connecter' : 'S\'inscrire';
+    button.innerHTML = button.dataset.originalText || originalText;
   }
 }
 
-// Validation functions
-function validateUsername(username) {
-  if (username.length < 3) {
-    return 'Le pseudo doit contenir au moins 3 caractères';
-  }
-  if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
-    return 'Le pseudo ne peut contenir que des lettres, chiffres, tirets et underscores';
-  }
-  return null;
-}
-
-function validatePassword(password) {
-  if (password.length < 6) {
-    return 'Le mot de passe doit contenir au moins 6 caractères';
-  }
-  return null;
-}
-
-// Authentication event handlers
 document.getElementById('loginBtn').addEventListener('click', async () => {
   const username = document.getElementById('authUsername').value.trim();
   const password = document.getElementById('authPassword').value;
@@ -545,39 +253,34 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
     return showAuthMessage('authMsg', 'Veuillez remplir tous les champs');
   }
 
-  const usernameError = validateUsername(username);
-  if (usernameError) {
-    return showAuthMessage('authMsg', usernameError);
-  }
-
   setLoading(document.getElementById('loginBtn'), true);
 
   try {
-    const response = await apiFetch('/login', {
+    const res = await apiFetch('/api/login', { 
       method: 'POST',
-      body: JSON.stringify({ username, password })
+      body: { username, password }
     });
-
-    const result = await handleResponse(response);
-
-    if (result.success) {
-      token = result.data.token;
-      localStorage.setItem('token', token);
-      currentUser = result.data.user;
-      
-      showAuthMessage('authMsg', 'Connexion réussie !', false);
-      setTimeout(() => {
-        updateUIAfterAuth();
-        renderSeries();
-      }, 1000);
-    } else {
-      throw new Error(result.error);
+    
+    const data = await res.json();
+    
+    if (!res.ok) {
+      throw new Error(data.error || 'Erreur de connexion');
     }
+
+    token = data.token;
+    localStorage.setItem('token', token);
+    currentUser = data.user;
+    
+    showAuthMessage('authMsg', 'Connexion réussie !', false);
+    setTimeout(() => {
+      updateUIAfterAuth();
+      renderSeries();
+    }, 1000);
 
   } catch (error) {
     showAuthMessage('authMsg', error.message);
   } finally {
-    setLoading(document.getElementById('loginBtn'), false);
+    setLoading(document.getElementById('loginBtn'), false, 'Se connecter');
   }
 });
 
@@ -590,16 +293,6 @@ document.getElementById('regBtn').addEventListener('click', async () => {
     return showAuthMessage('regMsg', 'Veuillez remplir tous les champs');
   }
 
-  const usernameError = validateUsername(username);
-  if (usernameError) {
-    return showAuthMessage('regMsg', usernameError);
-  }
-
-  const passwordError = validatePassword(password);
-  if (passwordError) {
-    return showAuthMessage('regMsg', passwordError);
-  }
-
   if (password !== password2) {
     return showAuthMessage('regMsg', 'Les mots de passe ne correspondent pas');
   }
@@ -607,48 +300,40 @@ document.getElementById('regBtn').addEventListener('click', async () => {
   setLoading(document.getElementById('regBtn'), true);
 
   try {
-    const response = await apiFetch('/register', {
+    const res = await apiFetch('/api/register', { 
       method: 'POST',
-      body: JSON.stringify({ username, password })
+      body: { username, password }
     });
-
-    const result = await handleResponse(response);
-
-    if (result.success) {
-      token = result.data.token;
-      localStorage.setItem('token', token);
-      currentUser = result.data.user;
-      
-      showAuthMessage('regMsg', 'Inscription réussie !', false);
-      setTimeout(() => {
-        updateUIAfterAuth();
-        renderSeries();
-      }, 1000);
-    } else {
-      throw new Error(result.error);
+    
+    const data = await res.json();
+    
+    if (!res.ok) {
+      throw new Error(data.error || 'Erreur d\'inscription');
     }
+
+    token = data.token;
+    localStorage.setItem('token', token);
+    currentUser = data.user;
+    
+    showAuthMessage('regMsg', 'Inscription réussie !', false);
+    setTimeout(() => {
+      updateUIAfterAuth();
+      renderSeries();
+    }, 1000);
 
   } catch (error) {
     showAuthMessage('regMsg', error.message);
   } finally {
-    setLoading(document.getElementById('regBtn'), false);
+    setLoading(document.getElementById('regBtn'), false, 'S\'inscrire');
   }
 });
 
-// Tab switching
 document.getElementById('loginTab').addEventListener('click', switchToLogin);
 document.getElementById('registerTab').addEventListener('click', switchToRegister);
-
-// Auth button
 document.getElementById('authBtn').addEventListener('click', showAuthModal);
-
-// Logout button
 document.getElementById('logoutBtn').addEventListener('click', handleLogout);
-
-// Close modal when clicking overlay
 document.getElementById('modalOverlay').addEventListener('click', hideAuthModal);
 
-// Navigation et affichage des séries
 async function showSection(id) {
   document.querySelectorAll('main > section').forEach(s => s.style.display = 'none');
   document.getElementById(id).style.display = '';
@@ -662,180 +347,107 @@ async function renderSeries() {
   const grid = document.getElementById('seriesGrid');
   grid.innerHTML = '<p class="muted">Chargement...</p>';
   try {
-    const response = await apiFetch('/series');
-    const result = await handleResponse(response);
+    const res = await apiFetch('/api/series');
+    const data = await res.json();
     
     grid.innerHTML = '';
-    
-    if (result.success) {
-      if (!result.data || !result.data.length) {
-        grid.innerHTML = '<p class="muted">Aucune série pour le moment.</p>';
-        return;
-      }
-      
-      result.data.forEach(s => {
-        const el = document.createElement('div'); 
-        el.className = 'card';
-        el.innerHTML = `
-          <img class="series-img" src="${s.image || 'https://via.placeholder.com/300x140/1a1a1a/666666?text=No+Image'}" alt="${s.name}" onerror="this.src='https://via.placeholder.com/300x140/1a1a1a/666666?text=Image+Error'">
-          <h3>${s.name}</h3>
-          <p class="muted">${s.desc || ''}</p>
-          <p class="muted">Ajouté par : ${s.pseudo}</p>
-          <div style="display:flex;gap:.5rem;margin-top:.5rem">
-            <button class="btn" onclick='openSeries("${s.id}")'>Voir</button>
-            ${ (currentUser && currentUser.isAdmin) ? `<button class="btn danger" onclick='deleteSeries("${s.id}")'>Supprimer</button>` : ''}
-          </div>
-        `;
-        grid.appendChild(el);
-      });
-    } else {
-      grid.innerHTML = `<p class="error">${result.error}</p>`;
+    if (!data || !data.length) {
+      grid.innerHTML = '<p class="muted">Aucune série pour le moment.</p>';
+      return;
     }
+    
+    data.forEach(s => {
+      const el = document.createElement('div'); 
+      el.className = 'card';
+      el.innerHTML = `
+        <img class="series-img" src="${s.image || 'https://via.placeholder.com/300x140/1a1a1a/666666?text=No+Image'}" alt="${s.name}" onerror="this.src='https://via.placeholder.com/300x140/1a1a1a/666666?text=Image+Error'">
+        <h3>${s.name}</h3>
+        <p class="muted">${s.desc || ''}</p>
+        <p class="muted">Ajouté par : ${s.pseudo}</p>
+        <div style="display:flex;gap:.5rem;margin-top:.5rem">
+          <button class="btn" onclick='openSeries("${s.id}")'>Voir</button>
+          ${ (currentUser && currentUser.isAdmin) ? `<button class="btn danger" onclick='deleteSeries("${s.id}")'>Supprimer</button>` : ''}
+        </div>
+      `;
+      grid.appendChild(el);
+    });
   } catch (error) {
     console.error('Erreur renderSeries:', error);
-    grid.innerHTML = '<p class="error">Erreur de chargement des séries</p>';
+    grid.innerHTML = '<p class="error">Erreur de chargement des séries.</p>';
   }
 }
 
-// FONCTIONS MANQUANTES AJOUTÉES :
-
 async function openSeries(id) {
   try {
-    const response = await apiFetch('/series');
-    const result = await handleResponse(response);
+    const res = await apiFetch('/api/series/' + id);
+    const s = await res.json();
     
-    if (!result.success) {
-      alert('Erreur: ' + result.error);
-      return;
-    }
-
-    const s = result.data.find(x => x.id === id);
-    if (!s) {
-      alert('Série introuvable');
-      return;
-    }
-
     const modal = document.getElementById('seriesModal');
-    let html = `
+    modal.innerHTML = `
       <h2>${s.name}</h2>
-      <p>${s.desc || ''}</p>
-      <img src="${s.image || 'https://via.placeholder.com/200x140/1a1a1a/666666?text=No+Image'}" style="max-width:200px;border-radius:6px" onerror="this.src='https://via.placeholder.com/200x140/1a1a1a/666666?text=Image+Error'">
-      <hr>
-      <h3>Épisodes</h3>
-    `;
-    
-    if (s.episodes && s.episodes.length > 0) {
-      s.episodes.forEach(ep => {
-        html += `
-          <div class="episode">
-            <div>
-              <strong>${ep.title || 'Épisode sans titre'}</strong> 
-              <div class="muted">par ${ep.pseudo}</div>
-            </div>
-            <div style="display:flex;gap:.4rem">
-              <a class="btn" href="${ep.src}" target="_blank">Regarder</a>
-              ${ (currentUser && currentUser.isAdmin) ? `<button class="btn danger" onclick='deleteEpisode("${s.id}","${ep.id}")'>Supprimer</button>` : '' }
-            </div>
-          </div>`;
-      });
-    } else {
-      html += '<p class="muted">Aucun épisode pour le moment.</p>';
-    }
-    
-    html += `
-      <hr><h4>Ajouter un épisode</h4>
-      <div>
-        <input id="addEpTitle" placeholder="Titre (optionnel)"/>
-        <input id="addEpSrc" placeholder="URL vidéo"/>
-        <div style="margin-top:.5rem">
-          <button class="btn" onclick='addEpisodeToSeries("${s.id}")'>Ajouter</button>
+      <p class="muted">${s.desc || ''}</p>
+      <hr style="border-color:#333;margin:1rem 0">
+      <h3>Épisodes (${s.episodes.length})</h3>
+      ${s.episodes.map(ep => `
+        <div class="episode">
+          <div>
+            <strong>${ep.title}</strong>
+            <p class="muted" style="margin:0;font-size:0.85rem">Par ${ep.pseudo}</p>
+          </div>
+          <button class="btn" onclick='playEpisode(${JSON.stringify(ep)})'>▶ Lire</button>
         </div>
-      </div>
-      <hr><button class="btn" onclick="closeSeries()">Fermer</button>
+      `).join('')}
+      <button class="btn danger" onclick="closeSeriesModal()" style="margin-top:1rem;width:100%">Fermer</button>
     `;
-    
-    modal.innerHTML = html;
     modal.classList.remove('hidden');
     document.getElementById('modalOverlay').classList.remove('hidden');
   } catch (error) {
     alert('Erreur lors du chargement de la série');
-    console.error(error);
   }
 }
 
-function closeSeries() {
-  const modal = document.getElementById('seriesModal');
-  modal.classList.add('hidden');
+function closeSeriesModal() {
+  document.getElementById('seriesModal').classList.add('hidden');
   document.getElementById('modalOverlay').classList.add('hidden');
-  modal.innerHTML = '';
-  renderSeries();
+}
+
+function playEpisode(ep) {
+  const modal = document.getElementById('seriesModal');
+  modal.innerHTML = `
+    <h3>${ep.title}</h3>
+    <video controls autoplay>
+      <source src="${ep.src}" type="video/mp4">
+      Votre navigateur ne supporte pas la lecture vidéo.
+    </video>
+    <button class="btn" onclick="closeSeriesModal()" style="margin-top:1rem;width:100%">Fermer</button>
+  `;
 }
 
 async function deleteSeries(id) {
-  if (!confirm('Supprimer la série et tous ses épisodes ?')) return;
+  if (!confirm('Êtes-vous sûr de vouloir supprimer cette série ?')) return;
   
   try {
-    const response = await apiFetch(`/series/${id}`, { method: 'DELETE' });
-    const result = await handleResponse(response);
-    
-    if (result.success) {
+    const res = await apiFetch('/api/series/' + id, { method: 'DELETE' });
+    if (res.ok) {
       alert('Série supprimée');
       renderSeries();
     } else {
-      alert('Erreur: ' + result.error);
+      const data = await res.json();
+      alert(data.error || 'Erreur');
     }
   } catch (error) {
-    alert('Erreur: ' + error.message);
+    alert('Erreur lors de la suppression');
   }
 }
 
-async function deleteEpisode(seriesId, epId) {
-  if (!confirm('Supprimer cet épisode ?')) return;
-  alert('Fonction de suppression d\'épisode - En développement');
-  // Implémentation future
-}
-
-async function addEpisodeToSeries(seriesId) {
-  const title = document.getElementById('addEpTitle').value.trim();
-  const src = document.getElementById('addEpSrc').value.trim();
-  
-  if (!src) {
-    return alert('URL vidéo requise');
-  }
-
-  try {
-    const response = await apiFetch('/series/episodes', {
-      method: 'POST',
-      body: JSON.stringify({ 
-        seriesId: seriesId,
-        title: title,
-        src: src
-      })
-    });
-
-    const result = await handleResponse(response);
-
-    if (result.success) {
-      alert('Épisode ajouté !');
-      closeSeries();
-      openSeries(seriesId); // Recharger la modal
-    } else {
-      alert('Erreur: ' + result.error);
-    }
-  } catch (error) {
-    alert('Erreur: ' + error.message);
-  }
-}
-
-// Fonctions pour les épisodes
 function addEpBlock() {
   const list = document.getElementById('epBlocks');
   const div = document.createElement('div');
   div.className = 'episode-block';
   div.innerHTML = `
-    <input class="epTitle" placeholder="Titre épisode (optionnel)"/>
-    <input class="epUrl" placeholder="Lien vidéo"/>
-    <input type="file" class="epFile"/>
+    <input class="epTitle" placeholder="Titre épisode (optionnel)" style="margin-bottom:0.3rem"/>
+    <input class="epUrl" placeholder="URL vidéo (si pas de fichier)" style="margin-bottom:0.3rem"/>
+    <input type="file" class="epFile" accept="video/*"/>
   `;
   list.appendChild(div);
 }
@@ -844,44 +456,82 @@ function clearEpBlocks() {
   document.getElementById('epBlocks').innerHTML = '';
 }
 
+function clearForm() {
+  document.getElementById('createPseudo').value = '';
+  document.getElementById('createName').value = '';
+  document.getElementById('createDesc').value = '';
+  document.getElementById('createImg').value = '';
+  clearEpBlocks();
+  addEpBlock();
+}
+
 async function submitCreate() {
   const pseudo = document.getElementById('createPseudo').value.trim();
   const name = document.getElementById('createName').value.trim();
   const desc = document.getElementById('createDesc').value.trim();
   const image = document.getElementById('createImg').value.trim();
-  
+
   if (!pseudo || !name) {
-    return alert('Pseudo et nom de série requis');
+    return alert('Le pseudo et le nom de la série sont requis');
   }
 
+  const blocks = document.querySelectorAll('.episode-block');
+  if (blocks.length === 0) {
+    return alert('Ajoutez au moins un épisode');
+  }
+
+  const formData = new FormData();
+  formData.append('pseudo', pseudo);
+  formData.append('name', name);
+  formData.append('desc', desc);
+  formData.append('image', image);
+
+  let episodesData = [];
+  
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const title = block.querySelector('.epTitle').value.trim() || `Épisode ${i + 1}`;
+    const url = block.querySelector('.epUrl').value.trim();
+    const fileInput = block.querySelector('.epFile');
+    const file = fileInput.files[0];
+
+    if (!url && !file) {
+      return alert(`Épisode ${i + 1}: Fournissez soit un lien, soit un fichier`);
+    }
+
+    if (file) {
+      formData.append(`episode_${i}`, file);
+      episodesData.push({ title, hasFile: true, index: i });
+    } else {
+      episodesData.push({ title, src: url, hasFile: false });
+    }
+  }
+
+  formData.append('episodes', JSON.stringify(episodesData));
+
   try {
-    const response = await apiFetch('/series', {
+    const res = await fetch(API_ROOT + '/api/series', {
       method: 'POST',
-      body: JSON.stringify({ name, desc, image, pseudo })
+      headers: token ? { 'Authorization': 'Bearer ' + token } : {},
+      body: formData
     });
 
-    const result = await handleResponse(response);
-
-    if (result.success) {
-      alert('Série créée avec succès!');
-      document.getElementById('createName').value = '';
-      document.getElementById('createDesc').value = '';
-      document.getElementById('createImg').value = '';
-      clearEpBlocks();
-      showSection('home');
-    } else {
-      alert('Erreur: ' + result.error);
+    const data = await res.json();
+    
+    if (!res.ok) {
+      throw new Error(data.error || 'Erreur lors de la création');
     }
+
+    alert('Série créée avec succès !');
+    clearForm();
+    showSection('home');
   } catch (error) {
     alert('Erreur: ' + error.message);
+    console.error(error);
   }
 }
 
-// Initialisation
 (async () => {
-  console.log('Anime Forever - Backend simulé intégré');
-  console.log('Compte admin disponible: admin / admin123');
-  
   if (token) {
     await loadMe();
   }
@@ -890,5 +540,4 @@ async function submitCreate() {
 })();
 </script>
 </body>
-</html>
-  
+  </html>
