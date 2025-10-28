@@ -1,425 +1,357 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Anime Forever</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;700&display=swap');
-  body { margin: 0; font-family: 'Nunito Sans', sans-serif; background-color: #0d0d0d; color: #f0f0f0; }
-  header { background: #1a1a1a; padding: 1rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.5);} 
-  header h1 { margin: 0; font-size: 1.8rem; color: #ff3d00; }
-  nav button { background: #ff3d00; border: none; color: #fff; padding: 0.5rem 1rem; margin-left: 0.5rem; border-radius: 5px; cursor: pointer; font-weight: bold;}
-  nav button:hover { background: #ff5722; }
-  main { padding: 1rem; }
-  .series-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(250px,1fr)); gap: 1rem; }
-  .serie-card { background: #1a1a1a; padding: 1rem; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.5);} 
-  .serie-card img { width: 100%; border-radius: 5px; }
-  .serie-card h2 { margin: 0.5rem 0 0.2rem 0; }
-  .episode-card { background: #222; padding: 0.5rem; margin: 0.5rem 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
-  .episode-actions button { margin-left: 0.5rem; }
-  input, select, textarea { width: 100%; padding: 0.5rem; margin: 0.3rem 0 0.8rem 0; border-radius: 5px; border: none;}
-  button.upload-btn { background: #00bfa5; border: none; color: #fff; padding: 0.7rem 1rem; border-radius: 5px; font-weight: bold; cursor: pointer;}
-  button.upload-btn:hover { background: #26a69a; }
-  button.modify-btn { background: #2979ff; color: #fff; border: none; padding: 0.4rem 0.8rem; border-radius: 5px; cursor: pointer; margin-left:0.5rem;}
-  button.modify-btn:hover { background: #1565c0; }
-  video { width: 100%; max-height: 400px; border-radius: 5px; margin-top: 0.5rem; }
-  .hidden { display: none; }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Anime Forever</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;700&display=swap');
+    :root { --bg:#0d0d0d; --card:#1a1a1a; --accent:#ff3d00; --muted:#ccc; }
+    body{margin:0;font-family:'Nunito Sans',sans-serif;background:var(--bg);color:#f0f0f0}
+    header{background:var(--card);padding:1rem;display:flex;justify-content:space-between;align-items:center}
+    header h1{color:var(--accent);margin:0}
+    nav button{background:var(--accent);border:none;color:#fff;padding:.5rem 1rem;border-radius:6px;cursor:pointer}
+    main{padding:1rem}
+    .series-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem}
+    .card{background:var(--card);padding:1rem;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+    img.series-img{width:100%;height:140px;object-fit:cover;border-radius:6px}
+    .episode{background:#222;padding:.5rem;border-radius:6px;margin-bottom:.5rem;display:flex;justify-content:space-between;align-items:center}
+    input,select,textarea{width:100%;padding:.5rem;border-radius:6px;border:none;margin:.4rem 0}
+    .btn{background:#00bfa5;color:#fff;border:none;padding:.6rem 1rem;border-radius:6px;cursor:pointer}
+    .danger{background:#e53935}
+    .muted{color:var(--muted)}
+    .hidden{display:none}
+    .top-right{position:fixed;right:1rem;top:1rem;z-index:2000}
+    .modal{position:fixed;left:5%;top:5%;right:5%;bottom:5%;background:#0b0b0b;padding:1rem;overflow:auto;border-radius:8px;z-index:9999}
+  </style>
 </head>
 <body>
-<!-- Système d'inscription/connexion (voir explications plus bas) -->
-<div id="authContainer" style="display:none; background: #1a1a1a; color: #fff; position: fixed; top:0; left:0; right:0; bottom:0; z-index:10000; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-  <div style="background:#222; padding:2rem; border-radius:10px; width:320px;">
+  <!-- auth modal -->
+  <div id="authModal" class="modal" style="display:none">
     <h2 id="authTitle">Connexion</h2>
-    <div id="registerFields" style="display:none;">
-      <input type="text" id="registerUsername" placeholder="Nom d'utilisateur" style="width:100%; margin-bottom:0.7rem;" />
-      <input type="password" id="registerPassword" placeholder="Mot de passe" style="width:100%; margin-bottom:0.7rem;" />
-      <input type="password" id="registerPasswordConfirm" placeholder="Répéter mot de passe" style="width:100%; margin-bottom:0.7rem;" />
-      <button onclick="registerUser()" style="width:100%;background:#00bfa5; color:#fff; border:none; padding:0.7rem; border-radius:6px;font-weight:bold;">S'inscrire</button>
-      <p style="margin-top:1rem; font-size:0.95em;">Déjà un compte ? <a href="#" onclick="toggleAuthMode('login')" style="color:#ff3d00;">Connexion</a></p>
+    <div id="authForm">
+      <input id="authUsername" placeholder="Pseudo" />
+      <input id="authPassword" placeholder="Mot de passe" type="password" />
+      <div style="display:flex;gap:.5rem">
+        <button id="loginBtn" class="btn">Se connecter</button>
+        <button id="showRegister" class="btn" style="background:#2979ff">S'inscrire</button>
+      </div>
+      <p id="authMsg" class="muted"></p>
     </div>
-    <div id="loginFields">
-      <input type="text" id="loginUsername" placeholder="Nom d'utilisateur" style="width:100%; margin-bottom:0.7rem;" />
-      <input type="password" id="loginPassword" placeholder="Mot de passe" style="width:100%; margin-bottom:0.7rem;" />
-      <button onclick="loginUser()" style="width:100%;background:#ff3d00; color:#fff; border:none; padding:0.7rem; border-radius:6px;font-weight:bold;">Se connecter</button>
-      <p style="margin-top:1rem; font-size:0.95em;">Pas encore de compte ? <a href="#" onclick="toggleAuthMode('register')" style="color:#00bfa5;">S'inscrire</a></p>
+    <div id="registerForm" style="display:none">
+      <input id="regUsername" placeholder="Pseudo" />
+      <input id="regPassword" placeholder="Mot de passe" type="password" />
+      <input id="regPassword2" placeholder="Répéter mot de passe" type="password" />
+      <div style="display:flex;gap:.5rem">
+        <button id="regBtn" class="btn">S'inscrire</button>
+        <button id="showLogin" class="btn" style="background:#ff7043">Se connecter</button>
+      </div>
+      <p id="regMsg" class="muted"></p>
     </div>
-    <p id="authMessage" style="color:#e53935; margin-top:0.6rem; min-height:1.2em;"></p>
-  </div>
-</div>
-<!-- Bouton déconnexion admin -->
-<button id="logoutBtn" onclick="logout()" style="position:fixed;top:1rem;right:1rem;z-index:2000;display:none;">Déconnexion</button>
-
-<header>
-  <h1>Anime Forever</h1>
-  <nav>
-    <button onclick="showPage('pageAccueil')">Accueil</button>
-    <button onclick="showPage('pageUpload')">Ajouter Vidéo</button>
-  </nav>
-</header>
-<main>
-  <!-- Accueil / Liste des séries -->
-  <div id="pageAccueil">
-    <h2>Nos Séries</h2>
-    <div class="series-grid" id="seriesContainer"></div>
   </div>
 
-  <!-- Page Série / Liste des épisodes -->
-  <div id="pageSerie" style="display:none;">
-    <button onclick="showPage('pageAccueil')">← Retour aux séries</button>
-    <h2 id="serieTitle"></h2>
-    <img id="serieImgDisplay" src="" alt="Image série" style="max-width:200px; border-radius:5px; display:block; margin-bottom:1rem;">
-    <!-- Bouton supprimer la série visible que pour l'admin -->
-    <button id="deleteSerieBtn" style="background:#e53935; color:#fff; margin-bottom:1rem; border:none; padding:0.5rem 1rem; border-radius:5px; cursor:pointer;display:none;" onclick="deleteSerie()">Supprimer la série</button>
-    <!-- Formulaire modification image -->
-    <div style="margin-bottom:1rem;">
-      <label for="editSerieImg">Changer l'image de la série :</label>
-      <input type="text" id="editSerieImg" placeholder="Nouvelle URL image...">
-      <button class="modify-btn" onclick="updateSerieImage()">Modifier</button>
-    </div>
-    <!-- Formulaire ajout épisode -->
-    <div style="margin-bottom:1rem;">
-      <details>
-        <summary style="cursor:pointer;">Ajouter un épisode à cette série</summary>
-        <div style="margin-top:0.5rem;">
-          <label>Pseudo de l'auteur :</label>
-          <input type="text" id="epPseudo" placeholder="Votre pseudo..." />
-          <label>Type de vidéo :</label>
-          <select id="epVideoType">
-            <option value="url">Lien externe (YouTube, etc.)</option>
-            <option value="local">Fichier local (mp4)</option>
-          </select>
-          <label id="epVideoLabel">URL de la vidéo :</label>
-          <input type="text" id="epVideoInput" placeholder="Lien vidéo ou fichier local..." />
-          <input type="file" id="epVideoFile" style="display:none;" accept="video/mp4"/>
-          <button class="upload-btn" onclick="addEpisodeToSerie()">Publier</button>
+  <div class="top-right">
+    <span id="userInfo" class="muted"></span>
+    <button id="logoutBtn" class="btn" style="display:none">Déconnexion</button>
+  </div>
+
+  <header>
+    <h1>Anime Forever</h1>
+    <nav>
+      <button onclick="showSection('home')">Accueil</button>
+      <button onclick="showSection('create')">Créer série / épisodes</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="home">
+      <h2>Nos séries</h2>
+      <div id="seriesGrid" class="series-grid"></div>
+    </section>
+
+    <section id="create" style="display:none">
+      <h2>Créer une série</h2>
+      <div class="card">
+        <label>Pseudo</label>
+        <input id="createPseudo" placeholder="Ton pseudo" />
+        <label>Nom de la série</label>
+        <input id="createName" placeholder="Titre de la série" />
+        <label>Description</label>
+        <textarea id="createDesc"></textarea>
+        <label>Image (URL)</label>
+        <input id="createImg" placeholder="https://..." />
+        <hr />
+        <h3>Épisodes</h3>
+        <div id="epBlocks"></div>
+        <div style="display:flex;gap:.5rem;margin-top:.5rem">
+          <button class="btn" onclick="addEpBlock()">+ Ajouter épisode</button>
+          <button class="btn" onclick="clearEpBlocks()">Réinitialiser</button>
         </div>
-      </details>
-    </div>
-    <div id="episodesContainer"></div>
-    <div id="videoPlayerContainer"></div>
-  </div>
+        <p class="muted">Les fichiers locaux seront uploadés sur le serveur si configuré.</p>
+        <div style="margin-top:.6rem">
+          <button class="btn" onclick="submitCreate()">Créer la série</button>
+        </div>
+      </div>
+    </section>
+  </main>
 
-  <!-- Page Upload / Ajouter série ou épisode (global) -->
-  <div id="pageUpload" style="display:none;">
-    <h2>Ajouter une Série ou un Épisode</h2>
-    <label>Pseudo de l'auteur :</label>
-    <input type="text" id="pseudo" placeholder="Votre pseudo..." />
-    <label>Nom de la série :</label>
-    <input type="text" id="serieName" placeholder="Nom de la série..." />
-    <label>Description de la série (optionnel) :</label>
-    <textarea id="serieDesc" placeholder="Description..."></textarea>
-    <label>Image de la série (URL) :</label>
-    <input type="text" id="serieImg" placeholder="Lien image..." />
-    <label>Type de vidéo :</label>
-    <select id="videoType">
-      <option value="url">Lien externe (YouTube, etc.)</option>
-      <option value="local">Fichier local (mp4)</option>
-    </select>
-    <label id="videoLabel">URL de la vidéo :</label>
-    <input type="text" id="videoInput" placeholder="Lien vidéo ou fichier local..." />
-    <input type="file" id="videoFile" style="display:none;" accept="video/mp4"/>
-    <button class="upload-btn" onclick="addEpisode()">Publier</button>
-  </div>
-</main>
+  <!-- simple modal for series details -->
+  <div id="seriesModal" class="modal hidden"></div>
+
 <script>
-// === Authentification et admin ===
-const ADMIN_USERNAME = "AnimeForever-admin"; // Mets ici TON pseudo d'inscription admin
+const API_ROOT = ''; // same origin; if deployed elsewhere, set full URL e.g. 'https://monserveur.com'
+let token = localStorage.getItem('token') || null;
+let currentUser = null;
+const ADMIN_USERNAME = 'AnimeForever-admin'; // keep for UI decisions, actual enforcement done on server
 
-function getUsers() {
-  return JSON.parse(localStorage.getItem('users')) || [];
-}
-function setUsers(users) {
-  localStorage.setItem('users', JSON.stringify(users));
-}
-function getCurrentUser() {
-  return localStorage.getItem('currentUser') || null;
-}
-function setCurrentUser(username) {
-  localStorage.setItem('currentUser', username);
-}
-function clearCurrentUser() {
-  localStorage.removeItem('currentUser');
-}
-function showAuth() {
-  document.body.style.overflow = "hidden";
-  document.getElementById('authContainer').style.display = 'flex';
-  document.getElementById('logoutBtn').style.display = "none";
-}
-function hideAuth() {
-  document.body.style.overflow = "";
-  document.getElementById('authContainer').style.display = 'none';
-  document.getElementById('logoutBtn').style.display = "";
+function authFetch(url, opts = {}) {
+  opts.headers = opts.headers || {};
+  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+  return fetch(API_ROOT + url, opts);
 }
 
-// Par défaut : afficher auth si personne connecté
-window.addEventListener('DOMContentLoaded', function() {
-  if(!getCurrentUser()) {
-    showAuth();
-  } else {
-    hideAuth();
-    renderSeries();
-  }
-  toggleDeleteButtons();
-});
-function logout() {
-  clearCurrentUser();
-  showAuth();
+async function loadMe() {
+  if (!token) return;
+  try {
+    const res = await authFetch('/api/me');
+    if (res.ok) {
+      const json = await res.json();
+      currentUser = json;
+      document.getElementById('userInfo').innerText = json.username + (json.isAdmin ? ' (admin)' : '');
+      document.getElementById('logoutBtn').style.display = '';
+    } else {
+      token = null; localStorage.removeItem('token'); currentUser=null;
+    }
+  } catch (e) { console.error(e); }
 }
-function toggleAuthMode(mode) {
-  document.getElementById('authMessage').innerText = '';
-  if(mode === 'register') {
-    document.getElementById('authTitle').innerText = "Inscription";
-    document.getElementById('registerFields').style.display = "";
-    document.getElementById('loginFields').style.display = "none";
-  } else {
-    document.getElementById('authTitle').innerText = "Connexion";
-    document.getElementById('registerFields').style.display = "none";
-    document.getElementById('loginFields').style.display = "";
+
+async function showSection(id) {
+  document.querySelectorAll('main > section').forEach(s => s.style.display = 'none');
+  document.getElementById(id).style.display = '';
+  if (id === 'home') await renderSeries();
+  if (id === 'create') {
+    // prefill pseudo if logged in
+    document.getElementById('createPseudo').value = currentUser ? currentUser.username : '';
   }
 }
-function registerUser() {
-  const username = document.getElementById('registerUsername').value.trim();
-  const password = document.getElementById('registerPassword').value;
-  const password2 = document.getElementById('registerPasswordConfirm').value;
-  const msg = document.getElementById('authMessage');
-  if(!username || !password || !password2) {
-    msg.innerText = "Remplis tous les champs.";
-    return;
-  }
-  if(password !== password2) {
-    msg.innerText = "Les mots de passe ne correspondent pas.";
-    return;
-  }
-  if(password.length < 4) {
-    msg.innerText = "Mot de passe trop court (min 4 caractères).";
-    return;
-  }
-  let users = getUsers();
-  if(users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
-    msg.innerText = "Nom d'utilisateur déjà pris.";
-    return;
-  }
-  users.push({username, password});
-  setUsers(users);
-  setCurrentUser(username);
-  msg.innerText = "";
-  hideAuth();
-  location.reload();
-}
-function loginUser() {
-  const username = document.getElementById('loginUsername').value.trim();
-  const password = document.getElementById('loginPassword').value;
-  const msg = document.getElementById('authMessage');
-  if(!username || !password) {
-    msg.innerText = "Remplis tous les champs.";
-    return;
-  }
-  let users = getUsers();
-  let user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-  if(!user || user.password !== password) {
-    msg.innerText = "Identifiants incorrects.";
-    return;
-  }
-  setCurrentUser(username);
-  msg.innerText = "";
-  hideAuth();
-  location.reload();
-}
-// === Données et stockage ===
-let animeData = JSON.parse(localStorage.getItem('animeData')) || [];
-let currentSerieIndex = null;
-function saveData() { localStorage.setItem('animeData', JSON.stringify(animeData)); }
-function showPage(pageId) {
-  document.querySelectorAll('main > div').forEach(p => p.style.display='none');
-  document.getElementById(pageId).style.display='block';
-  if(pageId !== 'pageSerie') resetEpisodeForm();
-  toggleDeleteButtons();
-}
-function renderSeries() {
-  const container = document.getElementById('seriesContainer');
-  container.innerHTML = '';
-  if(animeData.length === 0) container.innerHTML = '<p>Aucune série pour le moment.</p>';
-  animeData.forEach((serie, index) => {
-    const card = document.createElement('div'); card.className='serie-card';
-    card.innerHTML = `
-      <img src="${serie.image || ''}" alt="${serie.name}">
-      <h2>${serie.name}</h2>
-      <p>${serie.desc || ''}</p>
-      <p>Ajouté par : ${serie.pseudo}</p>
-      <button onclick="showSerie(${index})">Voir la série</button>
+
+async function renderSeries() {
+  const grid = document.getElementById('seriesGrid');
+  grid.innerHTML = '<p class="muted">Chargement...</p>';
+  const res = await fetch(API_ROOT + '/api/series');
+  const data = await res.json();
+  grid.innerHTML = '';
+  if (!data.length) grid.innerHTML = '<p class="muted">Aucune série pour le moment.</p>';
+  data.forEach(s => {
+    const el = document.createElement('div'); el.className = 'card';
+    el.innerHTML = `
+      <img class="series-img" src="${s.image || ''}" alt="${s.name}">
+      <h3>${s.name}</h3>
+      <p class="muted">${s.desc || ''}</p>
+      <p class="muted">Ajouté par : ${s.pseudo}</p>
+      <div style="display:flex;gap:.5rem;margin-top:.5rem">
+        <button class="btn" onclick='openSeries("${s.id}")'>Voir</button>
+        ${ (currentUser && currentUser.username === ADMIN_USERNAME) ? `<button class="btn danger" onclick='deleteSeries("${s.id}")'>Supprimer</button>` : ''}
+      </div>
     `;
-    container.appendChild(card);
+    grid.appendChild(el);
   });
 }
-// Affichage d’une série et ses épisodes, gestion admin
-function showSerie(index) {
-  currentSerieIndex = index;
-  const serie = animeData[index];
-  showPage('pageSerie');
-  document.getElementById('serieTitle').innerText = serie.name;
-  document.getElementById('serieImgDisplay').src = serie.image || '';
-  document.getElementById('editSerieImg').value = serie.image || '';
-  // Affiche bouton supprimer la série QUE pour admin
-  document.getElementById('deleteSerieBtn').style.display = (getCurrentUser()===ADMIN_USERNAME) ? "" : "none";
-  const container = document.getElementById('episodesContainer');
-  container.innerHTML = '';
-  if(!serie.episodes || serie.episodes.length===0) container.innerHTML='<p>Aucun épisode.</p>';
-  serie.episodes && serie.episodes.forEach((ep, i) => {
-    const epDiv = document.createElement('div'); epDiv.className='episode-card';
-    epDiv.innerHTML = `
-      <span>${ep.title} (Ajouté par: ${ep.pseudo})</span>
-      <span class="episode-actions">
-        <button onclick="playVideo('${ep.type}','${ep.src.replaceAll("'", "\\'")}')">Regarder</button>
-        ${ep.type==='url'?`<a href="${ep.src}" target="_blank"><button>Télécharger</button></a>`:
-        `<a href="${URL.createObjectURL(ep.file)}" download><button>Télécharger</button></a>`}
-        ${
-          getCurrentUser() === ADMIN_USERNAME
-          ? `<button style="background:#e53935; color:#fff;" onclick="deleteEpisode(${i})">Supprimer</button>`
-          : ''
-        }
-      </span>
-    `;
-    container.appendChild(epDiv);
+
+async function openSeries(id) {
+  const res = await fetch('/api/series');
+  const all = await res.json();
+  const s = all.find(x => x.id === id);
+  if (!s) return alert('Série introuvable');
+  const modal = document.getElementById('seriesModal');
+  let html = `<h2>${s.name}</h2><p>${s.desc || ''}</p><img src="${s.image||''}" style="max-width:200px;border-radius:6px"><hr>`;
+  html += `<h3>Épisodes</h3>`;
+  s.episodes.forEach(ep => {
+    html += `<div class="episode"><div><strong>${ep.title}</strong> <div class="muted">par ${ep.pseudo}</div></div>
+      <div style="display:flex;gap:.4rem">
+        <a class="btn" href="${ep.src}" target="_blank">Regarder</a>
+        ${ (currentUser && currentUser.username === ADMIN_USERNAME) ? `<button class="btn danger" onclick='deleteEpisode("${s.id}","${ep.id}")'>Supprimer</button>` : '' }
+      </div>
+    </div>`;
   });
-  document.getElementById('videoPlayerContainer').innerHTML='';
-  resetEpisodeForm();
+  html += `<hr><h4>Ajouter un épisode</h4>
+    <div>
+      <input id="addEpTitle" placeholder="Titre (optionnel)"/>
+      <input id="addEpSrc" placeholder="URL vidéo (laisser vide si upload fichier)"/>
+      <input type="file" id="addEpFile"/>
+      <div style="margin-top:.5rem"><button class="btn" onclick='addEpisodeToSeries("${s.id}")'>Ajouter</button></div>
+    </div>`;
+  html += `<hr><h4>Modifier image</h4><input id="newImgUrl" placeholder="Nouvelle URL image"/><button class="btn" onclick='updateSeriesImage("${s.id}")'>Modifier</button>`;
+  html += `<hr><button class="btn" onclick="closeSeries()">Fermer</button>`;
+  modal.innerHTML = html;
+  modal.classList.remove('hidden');
 }
-function deleteEpisode(epIndex) {
-  if(currentSerieIndex === null) return;
-  if(getCurrentUser() !== ADMIN_USERNAME) {
-    alert("Seul l'administrateur peut supprimer un épisode.");
-    return;
-  }
-  if(confirm('Supprimer cet épisode ?')) {
-    animeData[currentSerieIndex].episodes.splice(epIndex,1);
-    saveData();
-    showSerie(currentSerieIndex);
-  }
-}
-function deleteSerie() {
-  if(currentSerieIndex === null) return;
-  if(getCurrentUser() !== ADMIN_USERNAME) {
-    alert("Seul l'administrateur peut supprimer une série.");
-    return;
-  }
-  if(confirm('Supprimer cette série et tous ses épisodes ?')) {
-    animeData.splice(currentSerieIndex,1);
-    saveData();
-    showPage('pageAccueil');
-    renderSeries();
-  }
-}
-function playVideo(type, src) {
-  const container = document.getElementById('videoPlayerContainer');
-  container.innerHTML='';
-  if(type==='url') {
-    container.innerHTML = `<iframe width="100%" height="400" src="${src}" frameborder="0" allowfullscreen></iframe>`;
-  } else {
-    const video = document.createElement('video'); video.controls=true;
-    video.src = src; container.appendChild(video);
-  }
-}
-// Ajout épisode direct dans une série
-document.getElementById('epVideoType').addEventListener('change', function(){
-  if(this.value==='url'){
-    document.getElementById('epVideoInput').style.display='block';
-    document.getElementById('epVideoFile').style.display='none';
-    document.getElementById('epVideoLabel').innerText='URL de la vidéo :';
-  } else {
-    document.getElementById('epVideoInput').style.display='none';
-    document.getElementById('epVideoFile').style.display='block';
-    document.getElementById('epVideoLabel').innerText='Choisir un fichier vidéo :';
-  }
-});
-function addEpisodeToSerie() {
-  if(currentSerieIndex === null) return;
-  const pseudo = document.getElementById('epPseudo').value.trim();
-  const videoType = document.getElementById('epVideoType').value;
-  const videoSrc = videoType==='url'?document.getElementById('epVideoInput').value.trim():null;
-  const videoFile = videoType==='local'?document.getElementById('epVideoFile').files[0]:null;
-  if(!pseudo || (!videoSrc && !videoFile)) { alert('Veuillez remplir les champs requis.'); return; }
-  const serie = animeData[currentSerieIndex];
-  const epTitle = `Épisode ${serie.episodes.length+1}`;
-  if(videoType==='url'){
-    serie.episodes.push({title:epTitle, type:'url', src:videoSrc, pseudo:pseudo});
-  } else {
-    serie.episodes.push({title:epTitle, type:'local', file:videoFile, pseudo:pseudo, src:URL.createObjectURL(videoFile)});
-  }
-  saveData(); showSerie(currentSerieIndex);
-  alert('Épisode ajouté à la série !');
-  resetEpisodeForm();
-}
-function resetEpisodeForm() {
-  document.getElementById('epPseudo').value='';
-  document.getElementById('epVideoInput').value='';
-  document.getElementById('epVideoFile').value='';
-}
-// Modification image série
-function updateSerieImage() {
-  if(currentSerieIndex === null) return;
-  const imgUrl = document.getElementById('editSerieImg').value.trim();
-  animeData[currentSerieIndex].image = imgUrl;
-  saveData();
-  document.getElementById('serieImgDisplay').src = imgUrl;
+
+function closeSeries() {
+  const modal = document.getElementById('seriesModal');
+  modal.classList.add('hidden');
+  modal.innerHTML = '';
   renderSeries();
-  alert('Image de la série modifiée !');
 }
-// Ajout classique série ou épisode
-document.getElementById('videoType').addEventListener('change', function(){
-  if(this.value==='url'){
-    document.getElementById('videoInput').style.display='block';
-    document.getElementById('videoFile').style.display='none';
-    document.getElementById('videoLabel').innerText='URL de la vidéo :';
-  } else {
-    document.getElementById('videoInput').style.display='none';
-    document.getElementById('videoFile').style.display='block';
-    document.getElementById('videoLabel').innerText='Choisir un fichier vidéo :';
-  }
-});
-function addEpisode() {
-  const pseudo = document.getElementById('pseudo').value.trim();
-  const serieName = document.getElementById('serieName').value.trim();
-  const serieDesc = document.getElementById('serieDesc').value.trim();
-  const serieImg = document.getElementById('serieImg').value.trim();
-  const videoType = document.getElementById('videoType').value;
-  const videoSrc = videoType==='url'?document.getElementById('videoInput').value.trim():null;
-  const videoFile = videoType==='local'?document.getElementById('videoFile').files[0]:null;
 
-  if(!pseudo || !serieName || (!videoSrc && !videoFile)) { alert('Veuillez remplir les champs requis.'); return; }
-  let serie = animeData.find(s=>s.name.toLowerCase()===serieName.toLowerCase());
-  if(!serie){
-    serie = {name:serieName, desc:serieDesc, image:serieImg, pseudo:pseudo, episodes:[]};
-    animeData.push(serie);
-  } else if(serieImg) {
-    serie.image = serieImg; // Remplace image si renseignée lors de l'ajout d'un épisode à une série existante
+async function deleteSeries(id) {
+  if (!confirm('Supprimer la série et tous ses épisodes ?')) return;
+  const res = await authFetch('/api/series/' + id, { method: 'DELETE' });
+  if (res.ok) { alert('Série supprimée'); renderSeries(); } else {
+    const e = await res.json(); alert('Erreur: ' + (e.error || '')); 
   }
-  const epTitle = `Épisode ${serie.episodes.length+1}`;
-  if(videoType==='url'){
-    serie.episodes.push({title:epTitle, type:'url', src:videoSrc, pseudo:pseudo});
+}
+async function deleteEpisode(seriesId, epId) {
+  if (!confirm('Supprimer cet épisode ?')) return;
+  const res = await authFetch(`/api/series/${seriesId}/episodes/${epId}`, { method: 'DELETE' });
+  if (res.ok) { alert('Épisode supprimé'); openSeries(seriesId); } else {
+    const e = await res.json(); alert('Erreur: ' + (e.error || ''));
+  }
+}
+
+async function addEpisodeToSeries(seriesId) {
+  const title = document.getElementById('addEpTitle').value.trim();
+  const src = document.getElementById('addEpSrc').value.trim();
+  const file = document.getElementById('addEpFile').files[0];
+  if (!src && !file) return alert('Fournis une URL ou un fichier');
+  if (file) {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('title', title);
+    const res = await authFetch(`/api/series/${seriesId}/episodes`, { method: 'POST', body: form });
+    if (res.ok) { alert('Épisode ajouté'); openSeries(seriesId); } else { const e = await res.json(); alert(e.error || 'Erreur'); }
   } else {
-    serie.episodes.push({title:epTitle, type:'local', file:videoFile, pseudo:pseudo, src:URL.createObjectURL(videoFile)});
+    const res = await authFetch(`/api/series/${seriesId}/episodes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, type: 'url', src })
+    });
+    if (res.ok) { alert('Épisode ajouté'); openSeries(seriesId); } else { const e = await res.json(); alert(e.error || 'Erreur'); }
   }
-  saveData(); renderSeries();
-  alert('Vidéo publiée avec succès !');
-  showPage('pageAccueil');
-  document.getElementById('pseudo').value='';
-  document.getElementById('serieName').value='';
-  document.getElementById('serieDesc').value='';
-  document.getElementById('serieImg').value='';
-  document.getElementById('videoInput').value='';
-  document.getElementById('videoFile').value='';
 }
-function toggleDeleteButtons() {
-  // Affiche ou cache les boutons de suppression selon l'utilisateur connecté (pour page série)
-  if(document.getElementById('deleteSerieBtn')) {
-    document.getElementById('deleteSerieBtn').style.display = (getCurrentUser()===ADMIN_USERNAME) ? "" : "none";
+
+async function updateSeriesImage(seriesId) {
+  const img = document.getElementById('newImgUrl').value.trim();
+  if (!img) return alert('fournis une URL');
+  const res = await authFetch(`/api/series/${seriesId}/image`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: img })
+  });
+  if (res.ok) { alert('Image modifiée'); openSeries(seriesId); renderSeries(); } else { const e = await res.json(); alert(e.error || 'Erreur'); }
+}
+
+function addEpBlock(data) {
+  const list = document.getElementById('epBlocks');
+  const id = 'ep_' + Math.random().toString(36).slice(2,9);
+  const div = document.createElement('div');
+  div.id = id;
+  div.style = 'display:grid;grid-template-columns:1fr 160px 90px;gap:.4rem;margin-bottom:.4rem';
+  div.innerHTML = `
+    <input class="epTitle" placeholder="Titre épisode (optionnel)"/>
+    <input class="epUrl" placeholder="Lien vidéo (laisser si fichier)"/>
+    <input type="file" class="epFile"/>
+  `;
+  list.appendChild(div);
+  if (data) {
+    div.querySelector('.epTitle').value = data.title || '';
+    if (data.type === 'url') div.querySelector('.epUrl').value = data.src || '';
   }
-  // Les boutons "Supprimer" des épisodes sont générés dans showSerie avec la même condition.
 }
-// Initialisation
-// renderSeries(); <-- déjà appelé après connexion dans DOMContentLoaded !
+function clearEpBlocks() {
+  document.getElementById('epBlocks').innerHTML = '';
+  addEpBlock();
+}
+
+async function submitCreate() {
+  const pseudo = document.getElementById('createPseudo').value.trim();
+  const name = document.getElementById('createName').value.trim();
+  const desc = document.getElementById('createDesc').value.trim();
+  const image = document.getElementById('createImg').value.trim();
+  if (!pseudo || !name) return alert('Pseudo et nom requis');
+  const createRes = await authFetch('/api/series', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, desc, image })
+  });
+  if (!createRes.ok) { const e = await createRes.json(); return alert(e.error || 'Erreur création'); }
+  const series = await createRes.json();
+  const blocks = Array.from(document.querySelectorAll('#epBlocks > div'));
+  for (const b of blocks) {
+    const title = b.querySelector('.epTitle').value.trim();
+    const url = b.querySelector('.epUrl').value.trim();
+    const file = b.querySelector('.epFile').files[0];
+    if (!url && !file) continue;
+    if (file) {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('title', title);
+      const res = await authFetch(`/api/series/${series.id}/episodes`, { method: 'POST', body: form });
+      if (!res.ok) { const e = await res.json(); alert('Erreur upload: '+(e.error||'')); }
+    } else {
+      const res = await authFetch(`/api/series/${series.id}/episodes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, type: 'url', src: url })
+      });
+      if (!res.ok) { const e = await res.json(); alert('Erreur ajout: '+(e.error||'')); }
+    }
+  }
+  alert('Série créée');
+  document.getElementById('createName').value=''; document.getElementById('createDesc').value=''; document.getElementById('createImg').value='';
+  clearEpBlocks(); renderSeries(); showSection('home');
+}
+
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const u = document.getElementById('authUsername').value.trim();
+  const p = document.getElementById('authPassword').value;
+  if (!u||!p) return document.getElementById('authMsg').innerText = 'Remplis les champs';
+  const res = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: u, password: p })});
+  const j = await res.json();
+  if (!res.ok) return document.getElementById('authMsg').innerText = j.error || 'Erreur';
+  token = j.token; localStorage.setItem('token', token);
+  await loadMe();
+  document.getElementById('authModal').style.display='none';
+  renderSeries();
+});
+document.getElementById('showRegister').addEventListener('click', ()=> {
+  document.getElementById('authForm').style.display='none';
+  document.getElementById('registerForm').style.display='';
+});
+document.getElementById('showLogin').addEventListener('click', ()=> {
+  document.getElementById('authForm').style.display='';
+  document.getElementById('registerForm').style.display='none';
+});
+document.getElementById('regBtn').addEventListener('click', async () => {
+  const u = document.getElementById('regUsername').value.trim();
+  const p = document.getElementById('regPassword').value;
+  const p2 = document.getElementById('regPassword2').value;
+  if (!u||!p||!p2) return document.getElementById('regMsg').innerText = 'Remplis les champs';
+  if (p !== p2) return document.getElementById('regMsg').innerText = 'Mots de passe différents';
+  const res = await fetch('/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: u, password: p })});
+  const j = await res.json();
+  if (!res.ok) return document.getElementById('regMsg').innerText = j.error || 'Erreur';
+  token = j.token; localStorage.setItem('token', token);
+  await loadMe();
+  document.getElementById('authModal').style.display='none';
+  renderSeries();
+});
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  token = null; localStorage.removeItem('token'); currentUser = null;
+  document.getElementById('userInfo').innerText=''; document.getElementById('logoutBtn').style.display='none';
+  document.getElementById('authModal').style.display='block';
+});
+
+(async () => {
+  if (!token) {
+    document.getElementById('authModal').style.display='block';
+  } else {
+    await loadMe();
+    document.getElementById('authModal').style.display='none';
+  }
+  addEpBlock();
+  await renderSeries();
+})();
 </script>
 </body>
-      </html>
+  </html>
