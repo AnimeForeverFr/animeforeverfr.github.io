@@ -118,113 +118,20 @@
   <div id="seriesModal" class="modal hidden"></div>
 
 <script>
-// Configuration de base - SIMULATION d'API si le backend n'est pas disponible
-const API_ROOT = ''; 
+const API_ROOT = ''; // Mettez l'URL de votre API ici si nécessaire
 let token = localStorage.getItem('token') || null;
 let currentUser = null;
 
-// Simulation d'API pour le développement
-const mockAPI = {
-  async login(username, password) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    if (username === 'admin' && password === 'admin') {
-      return {
-        token: 'mock-jwt-token-' + Date.now(),
-        user: { username: 'admin', isAdmin: true }
-      };
-    }
-    if (username === 'test' && password === 'test123') {
-      return {
-        token: 'mock-jwt-token-' + Date.now(),
-        user: { username: 'test', isAdmin: false }
-      };
-    }
-    throw new Error('Identifiants incorrects');
-  },
-
-  async register(username, password) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    if (username.length < 3) {
-      throw new Error('Le pseudo doit contenir au moins 3 caractères');
-    }
-    if (password.length < 6) {
-      throw new Error('Le mot de passe doit contenir au moins 6 caractères');
-    }
-    if (username === 'admin') {
-      throw new Error('Ce pseudo est réservé');
-    }
-    return {
-      token: 'mock-jwt-token-' + Date.now(),
-      user: { username, isAdmin: false }
-    };
-  },
-
-  async getMe(token) {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    if (token && token.includes('mock-jwt-token')) {
-      const username = token.includes('admin') ? 'admin' : 'test';
-      return { username, isAdmin: username === 'admin' };
-    }
-    throw new Error('Token invalide');
-  },
-
-  async getSeries() {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return [
-      {
-        id: '1',
-        name: 'Naruto Shippuden',
-        desc: 'Suite des aventures de Naruto',
-        image: 'https://via.placeholder.com/300x140/1a1a1a/ff3d00?text=Naruto',
-        pseudo: 'admin',
-        episodes: [
-          { id: '1-1', title: 'Épisode 1: Retour au village', src: '#', pseudo: 'admin' },
-          { id: '1-2', title: 'Épisode 2: L\'équipe Kakashi', src: '#', pseudo: 'admin' }
-        ]
-      },
-      {
-        id: '2', 
-        name: 'Attack on Titan',
-        desc: 'Des géants menacent l\'humanité',
-        image: 'https://via.placeholder.com/300x140/1a1a1a/00bfa5?text=Attack+on+Titan',
-        pseudo: 'test',
-        episodes: [
-          { id: '2-1', title: 'Épisode 1: À vous de mourir', src: '#', pseudo: 'test' }
-        ]
-      }
-    ];
-  }
-};
-
-// Fonction fetch améliorée avec gestion d'erreurs
+// Fonction fetch avec gestion d'erreurs robuste
 async function apiFetch(url, opts = {}) {
-  // Si pas de backend, utiliser les mocks
-  if (!window.hasBackend) {
-    const mockMethod = url.replace('/api/', '').split('/')[0];
-    if (mockAPI[mockMethod]) {
-      try {
-        const result = await mockAPI[mockMethod](...Object.values(opts.body || {}));
-        return {
-          ok: true,
-          json: () => Promise.resolve(result),
-          text: () => Promise.resolve(JSON.stringify(result))
-        };
-      } catch (error) {
-        return {
-          ok: false,
-          json: () => Promise.resolve({ error: error.message }),
-          status: 400
-        };
-      }
-    }
-  }
-
-  // Sinon, faire une vraie requête
   opts.headers = opts.headers || {};
+  
+  // Ajouter le token d'authentification si disponible
   if (token && !url.includes('/login') && !url.includes('/register')) {
     opts.headers['Authorization'] = 'Bearer ' + token;
   }
   
+  // Gérer le body pour les requêtes JSON
   if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(opts.body);
@@ -233,37 +140,71 @@ async function apiFetch(url, opts = {}) {
   try {
     const response = await fetch(API_ROOT + url, opts);
     
-    // Vérifier si la réponse est du JSON valide
-    const text = await response.text();
-    let data;
-    try {
-      data = text ? JSON.parse(text) : {};
-    } catch (e) {
-      console.error('Réponse non-JSON:', text);
-      throw new Error('Réponse serveur invalide');
+    // Vérifier le type de contenu
+    const contentType = response.headers.get('content-type');
+    
+    if (!contentType || !contentType.includes('application/json')) {
+      // Si la réponse n'est pas du JSON, essayer de la parser comme texte
+      const text = await response.text();
+      throw new Error(`Réponse non-JSON: ${text.substring(0, 100)}`);
     }
     
-    // Retourner un objet response simulé avec les données
+    const data = await response.json();
+    
     return {
       ok: response.ok,
       status: response.status,
       json: () => Promise.resolve(data),
-      text: () => Promise.resolve(text)
+      text: () => Promise.resolve(JSON.stringify(data))
     };
+    
   } catch (error) {
-    console.error('Erreur fetch:', error);
-    // Retourner une réponse d'erreur simulée
+    console.error('Erreur API fetch:', error);
     return {
       ok: false,
       status: 0,
-      json: () => Promise.resolve({ error: 'Erreur de connexion' }),
-      text: () => Promise.resolve('{ "error": "Erreur de connexion" }')
+      json: () => Promise.resolve({ 
+        error: error.message.includes('JSON') 
+          ? 'Erreur serveur: réponse invalide' 
+          : 'Erreur de connexion au serveur'
+      })
     };
+  }
+}
+
+// Fonction d'authentification spécifique pour login/register
+async function authRequest(url, data) {
+  try {
+    const response = await fetch(API_ROOT + url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data)
+    });
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      throw new Error('Réponse serveur invalide');
+    }
+
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.error || 'Erreur d\'authentification');
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Erreur auth:', error);
+    throw error;
   }
 }
 
 async function loadMe() {
   if (!token) return;
+  
   try {
     const res = await apiFetch('/api/me');
     const json = await res.json();
@@ -388,16 +329,7 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
   setLoading(document.getElementById('loginBtn'), true);
 
   try {
-    const res = await apiFetch('/api/login', { 
-      method: 'POST',
-      body: { username, password }
-    });
-    
-    const data = await res.json();
-    
-    if (!res.ok) {
-      throw new Error(data.error || 'Erreur de connexion');
-    }
+    const data = await authRequest('/api/login', { username, password });
 
     token = data.token;
     localStorage.setItem('token', token);
@@ -442,16 +374,7 @@ document.getElementById('regBtn').addEventListener('click', async () => {
   setLoading(document.getElementById('regBtn'), true);
 
   try {
-    const res = await apiFetch('/api/register', { 
-      method: 'POST',
-      body: { username, password }
-    });
-    
-    const data = await res.json();
-    
-    if (!res.ok) {
-      throw new Error(data.error || 'Erreur d\'inscription');
-    }
+    const data = await authRequest('/api/register', { username, password });
 
     token = data.token;
     localStorage.setItem('token', token);
@@ -527,7 +450,7 @@ async function renderSeries() {
   }
 }
 
-// Fonctions pour les épisodes (simplifiées pour la démo)
+// Fonctions pour les épisodes
 function addEpBlock() {
   const list = document.getElementById('epBlocks');
   const div = document.createElement('div');
@@ -544,24 +467,44 @@ function clearEpBlocks() {
   document.getElementById('epBlocks').innerHTML = '';
 }
 
-function submitCreate() {
-  alert('Fonction de création - Mode démonstration');
-  showSection('home');
+async function submitCreate() {
+  const pseudo = document.getElementById('createPseudo').value.trim();
+  const name = document.getElementById('createName').value.trim();
+  const desc = document.getElementById('createDesc').value.trim();
+  const image = document.getElementById('createImg').value.trim();
+  
+  if (!pseudo || !name) {
+    return alert('Pseudo et nom de série requis');
+  }
+
+  try {
+    const res = await apiFetch('/api/series', {
+      method: 'POST',
+      body: { name, desc, image, pseudo }
+    });
+
+    if (res.ok) {
+      alert('Série créée avec succès!');
+      document.getElementById('createName').value = '';
+      document.getElementById('createDesc').value = '';
+      document.getElementById('createImg').value = '';
+      clearEpBlocks();
+      showSection('home');
+    } else {
+      const error = await res.json();
+      alert('Erreur: ' + (error.error || 'Erreur inconnue'));
+    }
+  } catch (error) {
+    alert('Erreur de connexion');
+  }
 }
 
 // Initialisation
 (async () => {
-  // Tester si le backend est disponible
-  try {
-    const testRes = await fetch(API_ROOT + '/api/series');
-    window.hasBackend = testRes.ok;
-  } catch (e) {
-    window.hasBackend = false;
-    console.log('Mode démonstration activé - pas de backend détecté');
-  }
-
   if (token) {
     await loadMe();
+  } else {
+    updateUIAfterAuth();
   }
   addEpBlock();
   await renderSeries();
