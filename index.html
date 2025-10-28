@@ -118,11 +118,11 @@
   <div id="seriesModal" class="modal hidden"></div>
 
 <script>
-const API_ROOT = ''; // Mettez l'URL de votre API ici si nécessaire
+const API_ROOT = ''; // L'URL de votre API
 let token = localStorage.getItem('token') || null;
 let currentUser = null;
 
-// Fonction fetch avec gestion d'erreurs robuste
+// Fonction fetch simplifiée et robuste
 async function apiFetch(url, opts = {}) {
   opts.headers = opts.headers || {};
   
@@ -140,66 +140,64 @@ async function apiFetch(url, opts = {}) {
   try {
     const response = await fetch(API_ROOT + url, opts);
     
-    // Vérifier le type de contenu
-    const contentType = response.headers.get('content-type');
-    
-    if (!contentType || !contentType.includes('application/json')) {
-      // Si la réponse n'est pas du JSON, essayer de la parser comme texte
+    // Essayer de parser la réponse comme JSON d'abord
+    try {
+      const data = await response.json();
+      return {
+        ok: response.ok,
+        status: response.status,
+        json: () => Promise.resolve(data),
+        text: () => Promise.resolve(JSON.stringify(data))
+      };
+    } catch (jsonError) {
+      // Si le JSON échoue, retourner une erreur propre
       const text = await response.text();
-      throw new Error(`Réponse non-JSON: ${text.substring(0, 100)}`);
+      console.error('Réponse non-JSON:', text.substring(0, 200));
+      return {
+        ok: false,
+        status: response.status,
+        json: () => Promise.resolve({ 
+          error: 'Le serveur a retourné une réponse invalide. Vérifiez que l\'API est correctement configurée.' 
+        })
+      };
     }
     
-    const data = await response.json();
-    
-    return {
-      ok: response.ok,
-      status: response.status,
-      json: () => Promise.resolve(data),
-      text: () => Promise.resolve(JSON.stringify(data))
-    };
-    
-  } catch (error) {
-    console.error('Erreur API fetch:', error);
+  } catch (networkError) {
+    console.error('Erreur réseau:', networkError);
     return {
       ok: false,
       status: 0,
       json: () => Promise.resolve({ 
-        error: error.message.includes('JSON') 
-          ? 'Erreur serveur: réponse invalide' 
-          : 'Erreur de connexion au serveur'
+        error: 'Impossible de se connecter au serveur. Vérifiez votre connexion.' 
       })
     };
   }
 }
 
-// Fonction d'authentification spécifique pour login/register
+// Fonction d'authentification simplifiée
 async function authRequest(url, data) {
+  const response = await fetch(API_ROOT + url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data)
+  });
+
+  // Essayer de parser la réponse
+  let result;
   try {
-    const response = await fetch(API_ROOT + url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data)
-    });
-
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      const text = await response.text();
-      throw new Error('Réponse serveur invalide');
-    }
-
-    const result = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(result.error || 'Erreur d\'authentification');
-    }
-
-    return result;
+    result = await response.json();
   } catch (error) {
-    console.error('Erreur auth:', error);
-    throw error;
+    const text = await response.text();
+    throw new Error('Le serveur ne répond pas correctement. Vérifiez votre configuration backend.');
   }
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Erreur d\'authentification');
+  }
+
+  return result;
 }
 
 async function loadMe() {
@@ -424,29 +422,34 @@ async function renderSeries() {
     const data = await res.json();
     
     grid.innerHTML = '';
-    if (!data || !data.length) {
-      grid.innerHTML = '<p class="muted">Aucune série pour le moment.</p>';
-      return;
-    }
     
-    data.forEach(s => {
-      const el = document.createElement('div'); 
-      el.className = 'card';
-      el.innerHTML = `
-        <img class="series-img" src="${s.image || 'https://via.placeholder.com/300x140/1a1a1a/666666?text=No+Image'}" alt="${s.name}" onerror="this.src='https://via.placeholder.com/300x140/1a1a1a/666666?text=Image+Error'">
-        <h3>${s.name}</h3>
-        <p class="muted">${s.desc || ''}</p>
-        <p class="muted">Ajouté par : ${s.pseudo}</p>
-        <div style="display:flex;gap:.5rem;margin-top:.5rem">
-          <button class="btn" onclick='openSeries("${s.id}")'>Voir</button>
-          ${ (currentUser && currentUser.isAdmin) ? `<button class="btn danger" onclick='deleteSeries("${s.id}")'>Supprimer</button>` : ''}
-        </div>
-      `;
-      grid.appendChild(el);
-    });
+    if (res.ok) {
+      if (!data || !data.length) {
+        grid.innerHTML = '<p class="muted">Aucune série pour le moment.</p>';
+        return;
+      }
+      
+      data.forEach(s => {
+        const el = document.createElement('div'); 
+        el.className = 'card';
+        el.innerHTML = `
+          <img class="series-img" src="${s.image || 'https://via.placeholder.com/300x140/1a1a1a/666666?text=No+Image'}" alt="${s.name}" onerror="this.src='https://via.placeholder.com/300x140/1a1a1a/666666?text=Image+Error'">
+          <h3>${s.name}</h3>
+          <p class="muted">${s.desc || ''}</p>
+          <p class="muted">Ajouté par : ${s.pseudo}</p>
+          <div style="display:flex;gap:.5rem;margin-top:.5rem">
+            <button class="btn" onclick='openSeries("${s.id}")'>Voir</button>
+            ${ (currentUser && currentUser.isAdmin) ? `<button class="btn danger" onclick='deleteSeries("${s.id}")'>Supprimer</button>` : ''}
+          </div>
+        `;
+        grid.appendChild(el);
+      });
+    } else {
+      grid.innerHTML = `<p class="error">${data.error || 'Erreur de chargement'}</p>`;
+    }
   } catch (error) {
     console.error('Erreur renderSeries:', error);
-    grid.innerHTML = '<p class="muted">Erreur de chargement des séries.</p>';
+    grid.innerHTML = '<p class="error">Erreur de connexion au serveur</p>';
   }
 }
 
@@ -483,6 +486,8 @@ async function submitCreate() {
       body: { name, desc, image, pseudo }
     });
 
+    const result = await res.json();
+
     if (res.ok) {
       alert('Série créée avec succès!');
       document.getElementById('createName').value = '';
@@ -491,11 +496,10 @@ async function submitCreate() {
       clearEpBlocks();
       showSection('home');
     } else {
-      const error = await res.json();
-      alert('Erreur: ' + (error.error || 'Erreur inconnue'));
+      alert('Erreur: ' + (result.error || 'Erreur inconnue'));
     }
   } catch (error) {
-    alert('Erreur de connexion');
+    alert('Erreur de connexion au serveur');
   }
 }
 
@@ -503,8 +507,6 @@ async function submitCreate() {
 (async () => {
   if (token) {
     await loadMe();
-  } else {
-    updateUIAfterAuth();
   }
   addEpBlock();
   await renderSeries();
