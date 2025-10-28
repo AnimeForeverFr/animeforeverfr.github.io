@@ -118,16 +118,40 @@
   <div id="seriesModal" class="modal hidden"></div>
 
 <script>
-const API_ROOT = ''; // L'URL de votre API
+// Configuration - ADAPTEZ CES URL À VOTRE API
+const API_BASE = '/api'; // Changez selon votre configuration serveur
 let token = localStorage.getItem('token') || null;
 let currentUser = null;
 
-// Fonction fetch ultra-simplifiée
-async function apiFetch(url, opts = {}) {
+// Test des endpoints disponibles
+async function testEndpoints() {
+  console.log('Test des endpoints API...');
+  
+  // Test endpoint séries
+  try {
+    const response = await fetch(API_BASE + '/series');
+    console.log('GET /api/series:', response.status, response.statusText);
+  } catch (e) {
+    console.log('GET /api/series: Erreur', e.message);
+  }
+  
+  // Test endpoint login
+  try {
+    const response = await fetch(API_BASE + '/login', { method: 'POST' });
+    console.log('POST /api/login:', response.status, response.statusText);
+  } catch (e) {
+    console.log('POST /api/login: Erreur', e.message);
+  }
+}
+
+// Fonction fetch adaptative
+async function apiFetch(endpoint, opts = {}) {
+  const url = API_BASE + endpoint;
+  
   opts.headers = opts.headers || {};
   
   // Ajouter le token d'authentification si disponible
-  if (token && !url.includes('/login') && !url.includes('/register')) {
+  if (token && !endpoint.includes('/login') && !endpoint.includes('/register')) {
     opts.headers['Authorization'] = 'Bearer ' + token;
   }
   
@@ -138,14 +162,11 @@ async function apiFetch(url, opts = {}) {
   }
 
   try {
-    const response = await fetch(API_ROOT + url, opts);
-    
-    // NE PAS lire la réponse ici, laisser l'appelant le faire
+    console.log(`API Call: ${opts.method || 'GET'} ${url}`);
+    const response = await fetch(url, opts);
     return response;
-    
   } catch (networkError) {
     console.error('Erreur réseau:', networkError);
-    // Retourner une réponse simulée pour les erreurs réseau
     return {
       ok: false,
       status: 0,
@@ -156,17 +177,43 @@ async function apiFetch(url, opts = {}) {
 
 // Fonction utilitaire pour traiter les réponses
 async function handleResponse(response) {
+  console.log(`Response: ${response.status} ${response.statusText}`);
+  
+  if (response.status === 405) {
+    return { 
+      success: false, 
+      error: 'Méthode non autorisée. Vérifiez la configuration du serveur.' 
+    };
+  }
+  
+  if (response.status === 404) {
+    return { 
+      success: false, 
+      error: 'Endpoint non trouvé. Vérifiez les routes API.' 
+    };
+  }
+  
   if (!response.ok) {
-    // Si le statut n'est pas OK, essayer de lire l'erreur
     try {
       const errorData = await response.json();
-      return { success: false, error: errorData.error || 'Erreur serveur' };
+      return { 
+        success: false, 
+        error: errorData.error || `Erreur ${response.status}: ${response.statusText}` 
+      };
     } catch (e) {
-      return { success: false, error: `Erreur ${response.status}: ${response.statusText}` };
+      return { 
+        success: false, 
+        error: `Erreur ${response.status}: ${response.statusText}` 
+      };
     }
   }
 
   try {
+    // Pour les réponses 204 No Content
+    if (response.status === 204) {
+      return { success: true, data: {} };
+    }
+    
     const data = await response.json();
     return { success: true, data };
   } catch (e) {
@@ -174,14 +221,14 @@ async function handleResponse(response) {
   }
 }
 
-// Fonction d'authentification corrigée
-async function authRequest(url, credentials) {
-  const response = await fetch(API_ROOT + url, {
+// Fonctions d'authentification avec fallbacks
+async function authRequest(endpoint, credentials) {
+  const response = await apiFetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(credentials)
+    body: credentials
   });
 
   const result = await handleResponse(response);
@@ -197,15 +244,28 @@ async function loadMe() {
   if (!token) return;
   
   try {
-    const response = await apiFetch('/api/me');
-    const result = await handleResponse(response);
+    // Essayer différents endpoints possibles pour /me
+    const endpoints = ['/me', '/user', '/auth/me'];
     
-    if (result.success && result.data.username) {
-      currentUser = result.data;
-      updateUIAfterAuth();
-    } else {
-      await handleLogout();
+    for (const endpoint of endpoints) {
+      try {
+        const response = await apiFetch(endpoint);
+        const result = await handleResponse(response);
+        
+        if (result.success && result.data.username) {
+          currentUser = result.data;
+          updateUIAfterAuth();
+          return;
+        }
+      } catch (e) {
+        console.log(`Endpoint ${endpoint} non disponible:`, e.message);
+        continue;
+      }
     }
+    
+    // Si aucun endpoint ne fonctionne
+    await handleLogout();
+    
   } catch (e) { 
     console.error('Erreur loadMe:', e);
     await handleLogout();
@@ -320,7 +380,7 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
   setLoading(document.getElementById('loginBtn'), true);
 
   try {
-    const data = await authRequest('/api/login', { username, password });
+    const data = await authRequest('/login', { username, password });
 
     token = data.token;
     localStorage.setItem('token', token);
@@ -365,7 +425,7 @@ document.getElementById('regBtn').addEventListener('click', async () => {
   setLoading(document.getElementById('regBtn'), true);
 
   try {
-    const data = await authRequest('/api/register', { username, password });
+    const data = await authRequest('/register', { username, password });
 
     token = data.token;
     localStorage.setItem('token', token);
@@ -411,7 +471,7 @@ async function renderSeries() {
   const grid = document.getElementById('seriesGrid');
   grid.innerHTML = '<p class="muted">Chargement...</p>';
   try {
-    const response = await apiFetch('/api/series');
+    const response = await apiFetch('/series');
     const result = await handleResponse(response);
     
     grid.innerHTML = '';
@@ -474,7 +534,7 @@ async function submitCreate() {
   }
 
   try {
-    const response = await apiFetch('/api/series', {
+    const response = await apiFetch('/series', {
       method: 'POST',
       body: { name, desc, image, pseudo }
     });
@@ -498,6 +558,9 @@ async function submitCreate() {
 
 // Initialisation
 (async () => {
+  // Tester les endpoints au démarrage
+  await testEndpoints();
+  
   if (token) {
     await loadMe();
   }
