@@ -40,7 +40,7 @@
 </head>
 <body>
   <!-- auth modal -->
-  <div id="authModal" class="modal">
+  <div id="authModal" class="modal hidden">
     <div class="auth-tabs">
       <div class="auth-tab active" id="loginTab">Connexion</div>
       <div class="auth-tab" id="registerTab">Inscription</div>
@@ -66,7 +66,7 @@
     </div>
   </div>
 
-  <div id="modalOverlay" class="modal-overlay"></div>
+  <div id="modalOverlay" class="modal-overlay hidden"></div>
 
   <div class="top-right">
     <span id="userInfo" class="muted"></span>
@@ -118,30 +118,164 @@
   <div id="seriesModal" class="modal hidden"></div>
 
 <script>
-const API_ROOT = ''; // same origin; if deployed elsewhere, set full URL e.g. 'https://monserveur.com'
+// Configuration de base - SIMULATION d'API si le backend n'est pas disponible
+const API_ROOT = ''; 
 let token = localStorage.getItem('token') || null;
 let currentUser = null;
-const ADMIN_USERNAME = 'AnimeForever-admin';
 
-function authFetch(url, opts = {}) {
+// Simulation d'API pour le développement
+const mockAPI = {
+  async login(username, password) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    if (username === 'admin' && password === 'admin') {
+      return {
+        token: 'mock-jwt-token-' + Date.now(),
+        user: { username: 'admin', isAdmin: true }
+      };
+    }
+    if (username === 'test' && password === 'test123') {
+      return {
+        token: 'mock-jwt-token-' + Date.now(),
+        user: { username: 'test', isAdmin: false }
+      };
+    }
+    throw new Error('Identifiants incorrects');
+  },
+
+  async register(username, password) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    if (username.length < 3) {
+      throw new Error('Le pseudo doit contenir au moins 3 caractères');
+    }
+    if (password.length < 6) {
+      throw new Error('Le mot de passe doit contenir au moins 6 caractères');
+    }
+    if (username === 'admin') {
+      throw new Error('Ce pseudo est réservé');
+    }
+    return {
+      token: 'mock-jwt-token-' + Date.now(),
+      user: { username, isAdmin: false }
+    };
+  },
+
+  async getMe(token) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    if (token && token.includes('mock-jwt-token')) {
+      const username = token.includes('admin') ? 'admin' : 'test';
+      return { username, isAdmin: username === 'admin' };
+    }
+    throw new Error('Token invalide');
+  },
+
+  async getSeries() {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return [
+      {
+        id: '1',
+        name: 'Naruto Shippuden',
+        desc: 'Suite des aventures de Naruto',
+        image: 'https://via.placeholder.com/300x140/1a1a1a/ff3d00?text=Naruto',
+        pseudo: 'admin',
+        episodes: [
+          { id: '1-1', title: 'Épisode 1: Retour au village', src: '#', pseudo: 'admin' },
+          { id: '1-2', title: 'Épisode 2: L\'équipe Kakashi', src: '#', pseudo: 'admin' }
+        ]
+      },
+      {
+        id: '2', 
+        name: 'Attack on Titan',
+        desc: 'Des géants menacent l\'humanité',
+        image: 'https://via.placeholder.com/300x140/1a1a1a/00bfa5?text=Attack+on+Titan',
+        pseudo: 'test',
+        episodes: [
+          { id: '2-1', title: 'Épisode 1: À vous de mourir', src: '#', pseudo: 'test' }
+        ]
+      }
+    ];
+  }
+};
+
+// Fonction fetch améliorée avec gestion d'erreurs
+async function apiFetch(url, opts = {}) {
+  // Si pas de backend, utiliser les mocks
+  if (!window.hasBackend) {
+    const mockMethod = url.replace('/api/', '').split('/')[0];
+    if (mockAPI[mockMethod]) {
+      try {
+        const result = await mockAPI[mockMethod](...Object.values(opts.body || {}));
+        return {
+          ok: true,
+          json: () => Promise.resolve(result),
+          text: () => Promise.resolve(JSON.stringify(result))
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          json: () => Promise.resolve({ error: error.message }),
+          status: 400
+        };
+      }
+    }
+  }
+
+  // Sinon, faire une vraie requête
   opts.headers = opts.headers || {};
-  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
-  return fetch(API_ROOT + url, opts);
+  if (token && !url.includes('/login') && !url.includes('/register')) {
+    opts.headers['Authorization'] = 'Bearer ' + token;
+  }
+  
+  if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(opts.body);
+  }
+
+  try {
+    const response = await fetch(API_ROOT + url, opts);
+    
+    // Vérifier si la réponse est du JSON valide
+    const text = await response.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      console.error('Réponse non-JSON:', text);
+      throw new Error('Réponse serveur invalide');
+    }
+    
+    // Retourner un objet response simulé avec les données
+    return {
+      ok: response.ok,
+      status: response.status,
+      json: () => Promise.resolve(data),
+      text: () => Promise.resolve(text)
+    };
+  } catch (error) {
+    console.error('Erreur fetch:', error);
+    // Retourner une réponse d'erreur simulée
+    return {
+      ok: false,
+      status: 0,
+      json: () => Promise.resolve({ error: 'Erreur de connexion' }),
+      text: () => Promise.resolve('{ "error": "Erreur de connexion" }')
+    };
+  }
 }
 
 async function loadMe() {
   if (!token) return;
   try {
-    const res = await authFetch('/api/me');
-    if (res.ok) {
-      const json = await res.json();
+    const res = await apiFetch('/api/me');
+    const json = await res.json();
+    
+    if (res.ok && json.username) {
       currentUser = json;
       updateUIAfterAuth();
     } else {
       await handleLogout();
     }
   } catch (e) { 
-    console.error(e);
+    console.error('Erreur loadMe:', e);
     await handleLogout();
   }
 }
@@ -151,8 +285,7 @@ function updateUIAfterAuth() {
     document.getElementById('userInfo').innerText = currentUser.username + (currentUser.isAdmin ? ' (admin)' : '');
     document.getElementById('logoutBtn').style.display = '';
     document.getElementById('authBtn').style.display = 'none';
-    document.getElementById('authModal').style.display = 'none';
-    document.getElementById('modalOverlay').style.display = 'none';
+    hideAuthModal();
   } else {
     document.getElementById('userInfo').innerText = '';
     document.getElementById('logoutBtn').style.display = 'none';
@@ -169,14 +302,14 @@ async function handleLogout() {
 }
 
 function showAuthModal() {
-  document.getElementById('authModal').style.display = 'block';
-  document.getElementById('modalOverlay').style.display = 'block';
+  document.getElementById('authModal').classList.remove('hidden');
+  document.getElementById('modalOverlay').classList.remove('hidden');
   switchToLogin();
 }
 
 function hideAuthModal() {
-  document.getElementById('authModal').style.display = 'none';
-  document.getElementById('modalOverlay').style.display = 'none';
+  document.getElementById('authModal').classList.add('hidden');
+  document.getElementById('modalOverlay').classList.add('hidden');
 }
 
 function switchToLogin() {
@@ -255,10 +388,9 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
   setLoading(document.getElementById('loginBtn'), true);
 
   try {
-    const res = await fetch(API_ROOT + '/api/login', { 
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify({ username, password })
+    const res = await apiFetch('/api/login', { 
+      method: 'POST',
+      body: { username, password }
     });
     
     const data = await res.json();
@@ -269,10 +401,11 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
 
     token = data.token;
     localStorage.setItem('token', token);
-    await loadMe();
+    currentUser = data.user;
+    
     showAuthMessage('authMsg', 'Connexion réussie !', false);
     setTimeout(() => {
-      hideAuthModal();
+      updateUIAfterAuth();
       renderSeries();
     }, 1000);
 
@@ -309,10 +442,9 @@ document.getElementById('regBtn').addEventListener('click', async () => {
   setLoading(document.getElementById('regBtn'), true);
 
   try {
-    const res = await fetch(API_ROOT + '/api/register', { 
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify({ username, password })
+    const res = await apiFetch('/api/register', { 
+      method: 'POST',
+      body: { username, password }
     });
     
     const data = await res.json();
@@ -323,10 +455,11 @@ document.getElementById('regBtn').addEventListener('click', async () => {
 
     token = data.token;
     localStorage.setItem('token', token);
-    await loadMe();
+    currentUser = data.user;
+    
     showAuthMessage('regMsg', 'Inscription réussie !', false);
     setTimeout(() => {
-      hideAuthModal();
+      updateUIAfterAuth();
       renderSeries();
     }, 1000);
 
@@ -350,7 +483,7 @@ document.getElementById('logoutBtn').addEventListener('click', handleLogout);
 // Close modal when clicking overlay
 document.getElementById('modalOverlay').addEventListener('click', hideAuthModal);
 
-// Rest of your existing functions (showSection, renderSeries, etc.) remain the same...
+// Navigation et affichage des séries
 async function showSection(id) {
   document.querySelectorAll('main > section').forEach(s => s.style.display = 'none');
   document.getElementById(id).style.display = '';
@@ -364,11 +497,15 @@ async function renderSeries() {
   const grid = document.getElementById('seriesGrid');
   grid.innerHTML = '<p class="muted">Chargement...</p>';
   try {
-    const res = await fetch(API_ROOT + '/api/series');
-    if (!res.ok) throw new Error('Erreur de chargement');
+    const res = await apiFetch('/api/series');
     const data = await res.json();
+    
     grid.innerHTML = '';
-    if (!data.length) grid.innerHTML = '<p class="muted">Aucune série pour le moment.</p>';
+    if (!data || !data.length) {
+      grid.innerHTML = '<p class="muted">Aucune série pour le moment.</p>';
+      return;
+    }
+    
     data.forEach(s => {
       const el = document.createElement('div'); 
       el.className = 'card';
@@ -385,23 +522,50 @@ async function renderSeries() {
       grid.appendChild(el);
     });
   } catch (error) {
+    console.error('Erreur renderSeries:', error);
     grid.innerHTML = '<p class="muted">Erreur de chargement des séries.</p>';
-    console.error(error);
   }
+}
+
+// Fonctions pour les épisodes (simplifiées pour la démo)
+function addEpBlock() {
+  const list = document.getElementById('epBlocks');
+  const div = document.createElement('div');
+  div.className = 'episode-block';
+  div.innerHTML = `
+    <input class="epTitle" placeholder="Titre épisode (optionnel)"/>
+    <input class="epUrl" placeholder="Lien vidéo"/>
+    <input type="file" class="epFile"/>
+  `;
+  list.appendChild(div);
+}
+
+function clearEpBlocks() {
+  document.getElementById('epBlocks').innerHTML = '';
+}
+
+function submitCreate() {
+  alert('Fonction de création - Mode démonstration');
+  showSection('home');
 }
 
 // Initialisation
 (async () => {
+  // Tester si le backend est disponible
+  try {
+    const testRes = await fetch(API_ROOT + '/api/series');
+    window.hasBackend = testRes.ok;
+  } catch (e) {
+    window.hasBackend = false;
+    console.log('Mode démonstration activé - pas de backend détecté');
+  }
+
   if (token) {
     await loadMe();
-  } else {
-    updateUIAfterAuth();
   }
   addEpBlock();
   await renderSeries();
 })();
-
-// ... (le reste de vos fonctions existantes: openSeries, deleteSeries, addEpBlock, etc.)
 </script>
 </body>
-  </html>
+</html>
