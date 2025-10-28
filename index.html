@@ -122,7 +122,7 @@ const API_ROOT = ''; // L'URL de votre API
 let token = localStorage.getItem('token') || null;
 let currentUser = null;
 
-// Fonction fetch simplifiée et robuste
+// Fonction fetch ultra-simplifiée
 async function apiFetch(url, opts = {}) {
   opts.headers = opts.headers || {};
   
@@ -140,75 +140,68 @@ async function apiFetch(url, opts = {}) {
   try {
     const response = await fetch(API_ROOT + url, opts);
     
-    // Essayer de parser la réponse comme JSON d'abord
-    try {
-      const data = await response.json();
-      return {
-        ok: response.ok,
-        status: response.status,
-        json: () => Promise.resolve(data),
-        text: () => Promise.resolve(JSON.stringify(data))
-      };
-    } catch (jsonError) {
-      // Si le JSON échoue, retourner une erreur propre
-      const text = await response.text();
-      console.error('Réponse non-JSON:', text.substring(0, 200));
-      return {
-        ok: false,
-        status: response.status,
-        json: () => Promise.resolve({ 
-          error: 'Le serveur a retourné une réponse invalide. Vérifiez que l\'API est correctement configurée.' 
-        })
-      };
-    }
+    // NE PAS lire la réponse ici, laisser l'appelant le faire
+    return response;
     
   } catch (networkError) {
     console.error('Erreur réseau:', networkError);
+    // Retourner une réponse simulée pour les erreurs réseau
     return {
       ok: false,
       status: 0,
-      json: () => Promise.resolve({ 
-        error: 'Impossible de se connecter au serveur. Vérifiez votre connexion.' 
-      })
+      json: async () => ({ error: 'Impossible de se connecter au serveur' })
     };
   }
 }
 
-// Fonction d'authentification simplifiée
-async function authRequest(url, data) {
+// Fonction utilitaire pour traiter les réponses
+async function handleResponse(response) {
+  if (!response.ok) {
+    // Si le statut n'est pas OK, essayer de lire l'erreur
+    try {
+      const errorData = await response.json();
+      return { success: false, error: errorData.error || 'Erreur serveur' };
+    } catch (e) {
+      return { success: false, error: `Erreur ${response.status}: ${response.statusText}` };
+    }
+  }
+
+  try {
+    const data = await response.json();
+    return { success: true, data };
+  } catch (e) {
+    return { success: false, error: 'Réponse serveur invalide (non-JSON)' };
+  }
+}
+
+// Fonction d'authentification corrigée
+async function authRequest(url, credentials) {
   const response = await fetch(API_ROOT + url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(data)
+    body: JSON.stringify(credentials)
   });
 
-  // Essayer de parser la réponse
-  let result;
-  try {
-    result = await response.json();
-  } catch (error) {
-    const text = await response.text();
-    throw new Error('Le serveur ne répond pas correctement. Vérifiez votre configuration backend.');
+  const result = await handleResponse(response);
+  
+  if (!result.success) {
+    throw new Error(result.error);
   }
 
-  if (!response.ok) {
-    throw new Error(result.error || 'Erreur d\'authentification');
-  }
-
-  return result;
+  return result.data;
 }
 
 async function loadMe() {
   if (!token) return;
   
   try {
-    const res = await apiFetch('/api/me');
-    const json = await res.json();
+    const response = await apiFetch('/api/me');
+    const result = await handleResponse(response);
     
-    if (res.ok && json.username) {
-      currentUser = json;
+    if (result.success && result.data.username) {
+      currentUser = result.data;
       updateUIAfterAuth();
     } else {
       await handleLogout();
@@ -418,18 +411,18 @@ async function renderSeries() {
   const grid = document.getElementById('seriesGrid');
   grid.innerHTML = '<p class="muted">Chargement...</p>';
   try {
-    const res = await apiFetch('/api/series');
-    const data = await res.json();
+    const response = await apiFetch('/api/series');
+    const result = await handleResponse(response);
     
     grid.innerHTML = '';
     
-    if (res.ok) {
-      if (!data || !data.length) {
+    if (result.success) {
+      if (!result.data || !result.data.length) {
         grid.innerHTML = '<p class="muted">Aucune série pour le moment.</p>';
         return;
       }
       
-      data.forEach(s => {
+      result.data.forEach(s => {
         const el = document.createElement('div'); 
         el.className = 'card';
         el.innerHTML = `
@@ -445,11 +438,11 @@ async function renderSeries() {
         grid.appendChild(el);
       });
     } else {
-      grid.innerHTML = `<p class="error">${data.error || 'Erreur de chargement'}</p>`;
+      grid.innerHTML = `<p class="error">${result.error}</p>`;
     }
   } catch (error) {
     console.error('Erreur renderSeries:', error);
-    grid.innerHTML = '<p class="error">Erreur de connexion au serveur</p>';
+    grid.innerHTML = '<p class="error">Erreur de chargement des séries</p>';
   }
 }
 
@@ -481,14 +474,14 @@ async function submitCreate() {
   }
 
   try {
-    const res = await apiFetch('/api/series', {
+    const response = await apiFetch('/api/series', {
       method: 'POST',
       body: { name, desc, image, pseudo }
     });
 
-    const result = await res.json();
+    const result = await handleResponse(response);
 
-    if (res.ok) {
+    if (result.success) {
       alert('Série créée avec succès!');
       document.getElementById('createName').value = '';
       document.getElementById('createDesc').value = '';
@@ -496,10 +489,10 @@ async function submitCreate() {
       clearEpBlocks();
       showSection('home');
     } else {
-      alert('Erreur: ' + (result.error || 'Erreur inconnue'));
+      alert('Erreur: ' + result.error);
     }
   } catch (error) {
-    alert('Erreur de connexion au serveur');
+    alert('Erreur: ' + error.message);
   }
 }
 
