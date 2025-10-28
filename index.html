@@ -159,7 +159,7 @@ async function renderSeries() {
 }
 
 async function openSeries(id) {
-  const res = await fetch('/api/series');
+  const res = await fetch(API_ROOT + '/api/series');
   const all = await res.json();
   const s = all.find(x => x.id === id);
   if (!s) return alert('Série introuvable');
@@ -302,45 +302,69 @@ async function submitCreate() {
   clearEpBlocks(); renderSeries(); showSection('home');
 }
 
+// === EVENT LISTENERS POUR AUTHENTIFICATION ===
+
 document.getElementById('loginBtn').addEventListener('click', async () => {
   const u = document.getElementById('authUsername').value.trim();
   const p = document.getElementById('authPassword').value;
   if (!u||!p) return document.getElementById('authMsg').innerText = 'Remplis les champs';
-  const res = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: u, password: p })});
-  const j = await res.json();
-  if (!res.ok) return document.getElementById('authMsg').innerText = j.error || 'Erreur';
-  token = j.token; localStorage.setItem('token', token);
-  await loadMe();
-  document.getElementById('authModal').style.display='none';
-  renderSeries();
+  try {
+    const res = await fetch(API_ROOT + '/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: u, password: p })});
+    const j = await res.json();
+    if (!res.ok) return document.getElementById('authMsg').innerText = j.error || 'Erreur de connexion';
+    token = j.token; localStorage.setItem('token', token);
+    await loadMe();
+    document.getElementById('authModal').style.display='none';
+    document.getElementById('authMsg').innerText = '';
+    renderSeries();
+  } catch(e) {
+    document.getElementById('authMsg').innerText = 'Erreur réseau';
+  }
 });
+
 document.getElementById('showRegister').addEventListener('click', ()=> {
   document.getElementById('authForm').style.display='none';
   document.getElementById('registerForm').style.display='';
+  document.getElementById('authTitle').innerText = 'Inscription';
+  document.getElementById('authMsg').innerText = '';
+  document.getElementById('regMsg').innerText = '';
 });
+
 document.getElementById('showLogin').addEventListener('click', ()=> {
   document.getElementById('authForm').style.display='';
   document.getElementById('registerForm').style.display='none';
+  document.getElementById('authTitle').innerText = 'Connexion';
+  document.getElementById('authMsg').innerText = '';
+  document.getElementById('regMsg').innerText = '';
 });
+
 document.getElementById('regBtn').addEventListener('click', async () => {
   const u = document.getElementById('regUsername').value.trim();
   const p = document.getElementById('regPassword').value;
   const p2 = document.getElementById('regPassword2').value;
   if (!u||!p||!p2) return document.getElementById('regMsg').innerText = 'Remplis les champs';
   if (p !== p2) return document.getElementById('regMsg').innerText = 'Mots de passe différents';
-  const res = await fetch('/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: u, password: p })});
-  const j = await res.json();
-  if (!res.ok) return document.getElementById('regMsg').innerText = j.error || 'Erreur';
-  token = j.token; localStorage.setItem('token', token);
-  await loadMe();
-  document.getElementById('authModal').style.display='none';
-  renderSeries();
+  try {
+    const res = await fetch(API_ROOT + '/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: u, password: p })});
+    const j = await res.json();
+    if (!res.ok) return document.getElementById('regMsg').innerText = j.error || 'Erreur inscription';
+    token = j.token; localStorage.setItem('token', token);
+    await loadMe();
+    document.getElementById('authModal').style.display='none';
+    document.getElementById('regMsg').innerText = '';
+    renderSeries();
+  } catch(e) {
+    document.getElementById('regMsg').innerText = 'Erreur réseau';
+  }
 });
+
 document.getElementById('logoutBtn').addEventListener('click', () => {
   token = null; localStorage.removeItem('token'); currentUser = null;
   document.getElementById('userInfo').innerText=''; document.getElementById('logoutBtn').style.display='none';
   document.getElementById('authModal').style.display='block';
 });
+
+// === INITIALISATION ===
 
 (async () => {
   if (!token) {
@@ -354,4 +378,4 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
 })();
 </script>
 </body>
-  </html>
+</html>
