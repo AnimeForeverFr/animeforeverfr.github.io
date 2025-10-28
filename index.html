@@ -697,6 +697,136 @@ async function renderSeries() {
   }
 }
 
+// FONCTIONS MANQUANTES AJOUTÉES :
+
+async function openSeries(id) {
+  try {
+    const response = await apiFetch('/series');
+    const result = await handleResponse(response);
+    
+    if (!result.success) {
+      alert('Erreur: ' + result.error);
+      return;
+    }
+
+    const s = result.data.find(x => x.id === id);
+    if (!s) {
+      alert('Série introuvable');
+      return;
+    }
+
+    const modal = document.getElementById('seriesModal');
+    let html = `
+      <h2>${s.name}</h2>
+      <p>${s.desc || ''}</p>
+      <img src="${s.image || 'https://via.placeholder.com/200x140/1a1a1a/666666?text=No+Image'}" style="max-width:200px;border-radius:6px" onerror="this.src='https://via.placeholder.com/200x140/1a1a1a/666666?text=Image+Error'">
+      <hr>
+      <h3>Épisodes</h3>
+    `;
+    
+    if (s.episodes && s.episodes.length > 0) {
+      s.episodes.forEach(ep => {
+        html += `
+          <div class="episode">
+            <div>
+              <strong>${ep.title || 'Épisode sans titre'}</strong> 
+              <div class="muted">par ${ep.pseudo}</div>
+            </div>
+            <div style="display:flex;gap:.4rem">
+              <a class="btn" href="${ep.src}" target="_blank">Regarder</a>
+              ${ (currentUser && currentUser.isAdmin) ? `<button class="btn danger" onclick='deleteEpisode("${s.id}","${ep.id}")'>Supprimer</button>` : '' }
+            </div>
+          </div>`;
+      });
+    } else {
+      html += '<p class="muted">Aucun épisode pour le moment.</p>';
+    }
+    
+    html += `
+      <hr><h4>Ajouter un épisode</h4>
+      <div>
+        <input id="addEpTitle" placeholder="Titre (optionnel)"/>
+        <input id="addEpSrc" placeholder="URL vidéo"/>
+        <div style="margin-top:.5rem">
+          <button class="btn" onclick='addEpisodeToSeries("${s.id}")'>Ajouter</button>
+        </div>
+      </div>
+      <hr><button class="btn" onclick="closeSeries()">Fermer</button>
+    `;
+    
+    modal.innerHTML = html;
+    modal.classList.remove('hidden');
+    document.getElementById('modalOverlay').classList.remove('hidden');
+  } catch (error) {
+    alert('Erreur lors du chargement de la série');
+    console.error(error);
+  }
+}
+
+function closeSeries() {
+  const modal = document.getElementById('seriesModal');
+  modal.classList.add('hidden');
+  document.getElementById('modalOverlay').classList.add('hidden');
+  modal.innerHTML = '';
+  renderSeries();
+}
+
+async function deleteSeries(id) {
+  if (!confirm('Supprimer la série et tous ses épisodes ?')) return;
+  
+  try {
+    const response = await apiFetch(`/series/${id}`, { method: 'DELETE' });
+    const result = await handleResponse(response);
+    
+    if (result.success) {
+      alert('Série supprimée');
+      renderSeries();
+    } else {
+      alert('Erreur: ' + result.error);
+    }
+  } catch (error) {
+    alert('Erreur: ' + error.message);
+  }
+}
+
+async function deleteEpisode(seriesId, epId) {
+  if (!confirm('Supprimer cet épisode ?')) return;
+  alert('Fonction de suppression d\'épisode - En développement');
+  // Implémentation future
+}
+
+async function addEpisodeToSeries(seriesId) {
+  const title = document.getElementById('addEpTitle').value.trim();
+  const src = document.getElementById('addEpSrc').value.trim();
+  
+  if (!src) {
+    return alert('URL vidéo requise');
+  }
+
+  try {
+    const response = await apiFetch('/series/episodes', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        seriesId: seriesId,
+        title: title,
+        src: src
+      })
+    });
+
+    const result = await handleResponse(response);
+
+    if (result.success) {
+      alert('Épisode ajouté !');
+      closeSeries();
+      openSeries(seriesId); // Recharger la modal
+    } else {
+      alert('Erreur: ' + result.error);
+    }
+  } catch (error) {
+    alert('Erreur: ' + error.message);
+  }
+}
+
 // Fonctions pour les épisodes
 function addEpBlock() {
   const list = document.getElementById('epBlocks');
@@ -738,7 +868,7 @@ async function submitCreate() {
       document.getElementById('createDesc').value = '';
       document.getElementById('createImg').value = '';
       clearEpBlocks();
-      show
+      showSection('home');
     } else {
       alert('Erreur: ' + result.error);
     }
@@ -761,3 +891,4 @@ async function submitCreate() {
 </script>
 </body>
 </html>
+  
