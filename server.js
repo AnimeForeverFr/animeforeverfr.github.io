@@ -1,208 +1,348 @@
-// server.js
-// Simple Node/Express backend for Anime Forever
-// - Auth: register/login with bcrypt + JWT
-// - Upload: multer stores files in /uploads and returns /uploads/<file>
-// - Series & episodes stored in /data/series.json (simple, file-based)
-// - Admin checks via process.env.ADMIN_USERNAME or default "AnimeForever-admin"
 const express = require('express');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const cors = require('cors');
-
-const DATA_DIR = path.join(__dirname, 'data');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-const SERIES_FILE = path.join(DATA_DIR, 'series.json');
-
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
-
-const JWT_SECRET = process.env.JWT_SECRET || 'change_me_very_secret';
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'AnimeForever-admin';
-
-function readJson(file, fallback) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8') || 'null') || fallback;
-  } catch (e) {
-    return fallback;
-  }
-}
-function writeJson(file, obj) {
-  fs.writeFileSync(file, JSON.stringify(obj, null, 2), 'utf8');
-}
-if (!fs.existsSync(USERS_FILE)) writeJson(USERS_FILE, []);
-if (!fs.existsSync(SERIES_FILE)) writeJson(SERIES_FILE, []);
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '';
-    const name = Date.now() + '-' + Math.round(Math.random()*1e9) + ext;
-    cb(null, name);
-  }
-});
-const upload = multer({ storage, limits: { fileSize: 2_000_000_000 } }); // limit ~2GB (adjust)
 
 const app = express();
-app.use(cors());
+const SECRET = 'votre_secret_jwt_changez_moi';
+
+// Créer les dossiers nécessaires
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configuration de multer pour l'upload de fichiers
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    // Créer un nom unique pour éviter les collisions
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, 'video-' + uniqueSuffix + ext);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 500 * 1024 * 1024 // Limite à 500 MB par fichier
+  },
+  fileFilter: (req, file, cb) => {
+    // Accepter seulement les vidéos
+    const allowedTypes = /mp4|mkv|avi|webm|mov/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Seuls les fichiers vidéo sont acceptés (mp4, mkv, avi, webm, mov)'));
+    }
+  }
+});
+
+// Middleware
 app.use(express.json());
-app.use('/uploads', express.static(UPLOAD_DIR));
-app.use('/', express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
+app.use('/uploads', express.static(uploadsDir)); // Servir les fichiers uploadés
 
-// Helpers
-function generateToken(user) {
-  return jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '7d' });
-}
+// Base de données en mémoire (remplacer par une vraie DB en production)
+let users = [
+  { username: 'admin', password: bcrypt.hashSync('admin', 8), isAdmin: true }
+];
+let series = [];
+let nextSeriesId = 1;
+
+// Middleware d'authentification
 function authMiddleware(req, res, next) {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-  const parts = auth.split(' ');
-  if (parts.length !== 2) return res.status(401).json({ error: 'Bad token' });
-  const token = parts[1];
-  try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload;
-    next();
-  } catch (e) {
-    return res.status(401).json({ error: 'Invalid token' });
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Token manquant' });
   }
-}
-function isAdmin(req) {
-  return req.user && req.user.username === ADMIN_USERNAME;
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Token invalide' });
+  }
 }
 
-// Auth endpoints
-app.post('/api/register', async (req, res) => {
-  const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Missing fields' });
-  const users = readJson(USERS_FILE, []);
-  if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
-    return res.status(400).json({ error: 'User exists' });
+// Middleware admin
+function adminMiddleware(req, res, next) {
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Accès refusé - Admin uniquement' });
   }
-  const hash = await bcrypt.hash(password, 10);
-  users.push({ username, passwordHash: hash });
-  writeJson(USERS_FILE, users);
-  const token = generateToken({ username });
-  res.json({ token, username });
+  next();
+}
+
+// Routes d'authentification
+app.post('/api/register', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username et password requis' });
+    }
+
+    if (username.length < 3) {
+      return res.status(400).json({ error: 'Le pseudo doit contenir au moins 3 caractères' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères' });
+    }
+
+    if (users.find(u => u.username === username)) {
+      return res.status(400).json({ error: 'Ce pseudo est déjà pris' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 8);
+    const newUser = { username, password: hashedPassword, isAdmin: false };
+    users.push(newUser);
+
+    const token = jwt.sign({ username, isAdmin: false }, SECRET, { expiresIn: '7d' });
+    res.json({ token, user: { username, isAdmin: false } });
+  } catch (error) {
+    console.error('Erreur register:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Missing fields' });
-  const users = readJson(USERS_FILE, []);
-  const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-  if (!user) return res.status(400).json({ error: 'Invalid credentials' });
-  const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return res.status(400).json({ error: 'Invalid credentials' });
-  const token = generateToken({ username: user.username });
-  res.json({ token, username: user.username });
-});
+  try {
+    const { username, password } = req.body;
 
-app.get('/api/me', authMiddleware, (req, res) => {
-  res.json({ username: req.user.username, isAdmin: req.user.username === ADMIN_USERNAME });
-});
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username et password requis' });
+    }
 
-// Upload endpoint
-app.post('/api/upload', authMiddleware, upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  // Return public URL relative to server (frontend can prepend origin)
-  const url = `/uploads/${req.file.filename}`;
-  res.json({ url });
-});
+    const user = users.find(u => u.username === username);
+    if (!user) {
+      return res.status(401).json({ error: 'Identifiants incorrects' });
+    }
 
-// Series endpoints (file-based persistence)
-app.get('/api/series', (req, res) => {
-  const series = readJson(SERIES_FILE, []);
-  res.json(series);
-});
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Identifiants incorrects' });
+    }
 
-app.post('/api/series', authMiddleware, (req, res) => {
-  const { name, desc, image } = req.body || {};
-  if (!name) return res.status(400).json({ error: 'Missing series name' });
-  const series = readJson(SERIES_FILE, []);
-  const exists = series.find(s => s.name.toLowerCase() === name.toLowerCase());
-  if (exists) return res.status(400).json({ error: 'Series already exists' });
-  const newSeries = {
-    id: Date.now() + '-' + Math.round(Math.random()*1e9),
-    name,
-    desc: desc || '',
-    image: image || '',
-    pseudo: req.user.username,
-    episodes: []
-  };
-  series.push(newSeries);
-  writeJson(SERIES_FILE, series);
-  res.json(newSeries);
-});
-
-// Add episode (JSON or multipart form)
-// - JSON: { title, type, src, pseudo }
-// - multipart/form-data: file field 'file', title, pseudo
-app.post('/api/series/:id/episodes', authMiddleware, upload.single('file'), (req, res) => {
-  const { id } = req.params;
-  const series = readJson(SERIES_FILE, []);
-  const s = series.find(x => x.id === id);
-  if (!s) return res.status(404).json({ error: 'Series not found' });
-
-  if (req.file) {
-    // file uploaded
-    const url = `/uploads/${req.file.filename}`;
-    const title = req.body.title || `Épisode ${s.episodes.length+1}`;
-    s.episodes.push({ id: Date.now()+'-'+Math.round(Math.random()*1e9), title, type: 'url', src: url, pseudo: req.user.username, fileName: req.file.originalname });
-    writeJson(SERIES_FILE, series);
-    return res.json({ success: true, series: s });
-  } else {
-    // JSON body expected
-    const { title, type, src } = req.body || {};
-    if (!src) return res.status(400).json({ error: 'Missing src' });
-    s.episodes.push({ id: Date.now()+'-'+Math.round(Math.random()*1e9), title: title || `Épisode ${s.episodes.length+1}`, type: type || 'url', src, pseudo: req.user.username });
-    writeJson(SERIES_FILE, series);
-    return res.json({ success: true, series: s });
+    const token = jwt.sign({ username: user.username, isAdmin: user.isAdmin }, SECRET, { expiresIn: '7d' });
+    res.json({ token, user: { username: user.username, isAdmin: user.isAdmin } });
+  } catch (error) {
+    console.error('Erreur login:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
-// Update series image
-app.put('/api/series/:id/image', authMiddleware, (req, res) => {
-  const { id } = req.params;
-  const { image } = req.body || {};
-  const series = readJson(SERIES_FILE, []);
-  const s = series.find(x => x.id === id);
-  if (!s) return res.status(404).json({ error: 'Series not found' });
-  s.image = image || '';
-  writeJson(SERIES_FILE, series);
-  res.json({ success: true, series: s });
+app.get('/api/me', authMiddleware, (req, res) => {
+  res.json({ username: req.user.username, isAdmin: req.user.isAdmin });
 });
 
-// Delete episode (admin only)
-app.delete('/api/series/:id/episodes/:epId', authMiddleware, (req, res) => {
-  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
-  const { id, epId } = req.params;
-  const series = readJson(SERIES_FILE, []);
-  const s = series.find(x => x.id === id);
-  if (!s) return res.status(404).json({ error: 'Series not found' });
-  const idx = s.episodes.findIndex(e => e.id === epId);
-  if (idx === -1) return res.status(404).json({ error: 'Episode not found' });
-  s.episodes.splice(idx, 1);
-  writeJson(SERIES_FILE, series);
-  res.json({ success: true });
+// Routes pour les séries
+app.get('/api/series', (req, res) => {
+  res.json(series);
 });
 
-// Delete series (admin only)
-app.delete('/api/series/:id', authMiddleware, (req, res) => {
-  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
-  const { id } = req.params;
-  const series = readJson(SERIES_FILE, []);
-  const idx = series.findIndex(x => x.id === id);
-  if (idx === -1) return res.status(404).json({ error: 'Series not found' });
+app.get('/api/series/:id', (req, res) => {
+  const s = series.find(x => x.id === req.params.id);
+  if (!s) return res.status(404).json({ error: 'Série introuvable' });
+  res.json(s);
+});
+
+// Créer une série avec upload de fichiers
+app.post('/api/series', authMiddleware, upload.any(), async (req, res) => {
+  try {
+    const { pseudo, name, desc, image, episodes } = req.body;
+
+    if (!pseudo || !name) {
+      // Nettoyer les fichiers uploadés si erreur
+      if (req.files) {
+        req.files.forEach(file => fs.unlinkSync(file.path));
+      }
+      return res.status(400).json({ error: 'Pseudo et nom requis' });
+    }
+
+    let episodesData = [];
+    try {
+      episodesData = JSON.parse(episodes || '[]');
+    } catch (e) {
+      if (req.files) {
+        req.files.forEach(file => fs.unlinkSync(file.path));
+      }
+      return res.status(400).json({ error: 'Format d\'épisodes invalide' });
+    }
+
+    if (episodesData.length === 0) {
+      if (req.files) {
+        req.files.forEach(file => fs.unlinkSync(file.path));
+      }
+      return res.status(400).json({ error: 'Au moins un épisode est requis' });
+    }
+
+    // Construire la liste des épisodes avec les fichiers uploadés
+    const finalEpisodes = episodesData.map((ep, idx) => {
+      if (ep.hasFile) {
+        // Trouver le fichier correspondant
+        const file = req.files.find(f => f.fieldname === `episode_${ep.index}`);
+        if (!file) {
+          throw new Error(`Fichier manquant pour l'épisode ${idx + 1}`);
+        }
+        return {
+          id: `${nextSeriesId}-${idx + 1}`,
+          title: ep.title,
+          src: `/uploads/${file.filename}`, // URL relative vers le fichier
+          pseudo: pseudo
+        };
+      } else {
+        return {
+          id: `${nextSeriesId}-${idx + 1}`,
+          title: ep.title,
+          src: ep.src, // URL externe
+          pseudo: pseudo
+        };
+      }
+    });
+
+    const newSeries = {
+      id: String(nextSeriesId++),
+      name,
+      desc: desc || '',
+      image: image || '',
+      pseudo: pseudo,
+      episodes: finalEpisodes
+    };
+
+    series.push(newSeries);
+    res.json(newSeries);
+  } catch (error) {
+    console.error('Erreur création série:', error);
+    // Nettoyer les fichiers en cas d'erreur
+    if (req.files) {
+      req.files.forEach(file => {
+        try {
+          fs.unlinkSync(file.path);
+        } catch (e) {
+          console.error('Erreur suppression fichier:', e);
+        }
+      });
+    }
+    res.status(500).json({ error: error.message || 'Erreur serveur' });
+  }
+});
+
+// Supprimer une série (admin uniquement)
+app.delete('/api/series/:id', authMiddleware, adminMiddleware, (req, res) => {
+  const idx = series.findIndex(s => s.id === req.params.id);
+  if (idx === -1) {
+    return res.status(404).json({ error: 'Série introuvable' });
+  }
+
+  // Supprimer les fichiers vidéo associés
+  const seriesToDelete = series[idx];
+  seriesToDelete.episodes.forEach(ep => {
+    if (ep.src.startsWith('/uploads/')) {
+      const filePath = path.join(__dirname, ep.src);
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log('Fichier supprimé:', filePath);
+        }
+      } catch (error) {
+        console.error('Erreur suppression fichier:', error);
+      }
+    }
+  });
+
   series.splice(idx, 1);
-  writeJson(SERIES_FILE, series);
   res.json({ success: true });
 });
 
+// Ajouter un épisode à une série existante
+app.post('/api/series/:id/episodes', authMiddleware, upload.single('video'), (req, res) => {
+  try {
+    const seriesObj = series.find(s => s.id === req.params.id);
+    if (!seriesObj) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: 'Série introuvable' });
+    }
+
+    const { title, url, pseudo } = req.body;
+    const epNumber = seriesObj.episodes.length + 1;
+
+    let src;
+    if (req.file) {
+      src = `/uploads/${req.file.filename}`;
+    } else if (url) {
+      src = url;
+    } else {
+      return res.status(400).json({ error: 'Fichier ou URL requis' });
+    }
+
+    const newEpisode = {
+      id: `${seriesObj.id}-${epNumber}`,
+      title: title || `Épisode ${epNumber}`,
+      src: src,
+      pseudo: pseudo || req.user.username
+    };
+
+    seriesObj.episodes.push(newEpisode);
+    res.json(newEpisode);
+  } catch (error) {
+    console.error('Erreur ajout épisode:', error);
+    if (req.file) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (e) {
+        console.error('Erreur suppression fichier:', e);
+      }
+    }
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Supprimer un épisode (admin uniquement)
+app.delete('/api/series/:seriesId/episodes/:episodeId', authMiddleware, adminMiddleware, (req, res) => {
+  const seriesObj = series.find(s => s.id === req.params.seriesId);
+  if (!seriesObj) {
+    return res.status(404).json({ error: 'Série introuvable' });
+  }
+
+  const epIdx = seriesObj.episodes.findIndex(ep => ep.id === req.params.episodeId);
+  if (epIdx === -1) {
+    return res.status(404).json({ error: 'Épisode introuvable' });
+  }
+
+  const episode = seriesObj.episodes[epIdx];
+  
+  // Supprimer le fichier si c'est un upload local
+  if (episode.src.startsWith('/uploads/')) {
+    const filePath = path.join(__dirname, episode.src);
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log('Fichier supprimé:', filePath);
+      }
+    } catch (error) {
+      console.error('Erreur suppression fichier:', error);
+    }
+  }
+
+  seriesObj.episodes.splice(epIdx, 1);
+  res.json({ success: true });
+});
+
+// Démarrer le serveur
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server listening on ${PORT}, admin: ${ADMIN_USERNAME}`);
+  console.log(`✅ Serveur démarré sur http://localhost:${PORT}`);
+  console.log(`📁 Dossier uploads: ${uploadsDir}`);
+  console.log(`👤 Compte admin: admin / admin`);
 });
